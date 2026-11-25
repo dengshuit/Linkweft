@@ -255,7 +255,7 @@ func assertResultURLs(t *testing.T, response map[string]any, want ...string) {
 func TestSearchStrategyPreflight(t *testing.T) {
 	isolateConfig(t)
 	t.Setenv("TAVILY_API_KEY", testKey)
-	t.Setenv("FIRECRAWL_API_KEY", "test-only-firecrawl-key")
+	t.Setenv("ANYSEARCH_API_KEY", "test-only-anysearch-key")
 	app, tavilyCalls := testApp(t, testKey, 10, func(http.ResponseWriter, *http.Request) {})
 	exa, exaCalls := exaApp(t, exaKey, 10, func(http.ResponseWriter, *http.Request) {})
 	app.NewExa = exa.NewExa
@@ -264,7 +264,7 @@ func TestSearchStrategyPreflight(t *testing.T) {
 		options                []string
 	}{
 		{"AC06 missing Exa key", "tavily,exa", "missing_credentials", nil},
-		{"AC06 incompatible provider", "tavily,firecrawl", "unsupported_capability", nil},
+		{"AC06 incompatible provider", "tavily,anysearch", "unsupported_capability", nil},
 		{"AC37 unknown provider", "tavily,unknown", "invalid_argument", nil},
 		{"invalid Exa timeout", "tavily,exa", "invalid_config",
 			[]string{"--config", testConfig(t, "[providers.exa]\nsearch_timeout = '0s'")}},

@@ -49,7 +49,9 @@ func (a App) search(cmd *cobra.Command, query string, opts searchFlags) (retriev
 	if timeout == 0 {
 		timeout = cfg.Search.Timeout
 	}
-	factories := map[string]func(string) retrieval.SearchProvider{"tavily": a.NewTavily, "exa": a.NewExa, "keenable": a.NewKeenable}
+	factories := map[string]func(string) retrieval.SearchProvider{
+		"tavily": a.NewTavily, "exa": a.NewExa, "keenable": a.NewKeenable, "firecrawl": a.NewFirecrawl,
+	}
 	registry := make(map[string]retrieval.SearchProvider, len(names))
 	for _, name := range names {
 		factory := factories[name]

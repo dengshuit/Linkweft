@@ -127,7 +127,7 @@ func TestFetchPreflight(t *testing.T) {
 		{"unknown provider", "invalid_argument", fetchArgs("--providers", "tavily, unknown")},
 		{"empty provider", "invalid_argument", fetchArgs("--providers", "tavily, ")},
 		{"missing later credentials", "missing_credentials", fetchArgs("--providers", "tavily, exa")},
-		{"unsupported later provider", "unsupported_capability", fetchArgs("--providers", "tavily, firecrawl")},
+		{"unsupported later provider", "unsupported_capability", fetchArgs("--providers", "tavily, anysearch")},
 		{"missing config", "invalid_config", fetchArgs("--config", filepath.Join(t.TempDir(), "absent.toml"))},
 		{"duplicate config priority", "invalid_config", fetchArgs("--config", testConfig(t, "[fetch]\npriority = ['exa', 'exa']"))},
 		{"invalid config count", "invalid_config", fetchArgs("--config", testConfig(t, "[fetch]\nmax_chars = 0"))},
@@ -417,20 +417,28 @@ func TestFetchAutomaticBuiltInOrder(t *testing.T) {
 	isolateConfig(t)
 	t.Setenv("TAVILY_API_KEY", testKey)
 	t.Setenv("EXA_API_KEY", exaKey)
-	t.Setenv("FIRECRAWL_API_KEY", "test-only-firecrawl-key")
+	t.Setenv("KEENABLE_API_KEY", keenableKey)
+	t.Setenv("FIRECRAWL_API_KEY", firecrawlKey)
 	t.Setenv("ANYSEARCH_API_KEY", "test-only-anysearch-key")
 	t.Setenv("TINYFISH_API_KEY", "test-only-tinyfish-key")
 	app, tavilyCalls, exaCalls := fetchApp(t, bodyResponse(tavilyBody), bodyResponse(exaBody))
+	keenableSearch, keenableFetch := addKeenable(t, &app, keenableKey, query, 10, nil, bodyResponse(keenableBody))
+	firecrawlSearch, firecrawlFetch := addFirecrawl(t, &app, firecrawlKey, 10, nil, bodyResponse(firecrawlBody))
 	stdout, _ := run(t, context.Background(), app, 0, fetchArgs()...)
 	obj := fetchResponse(t, stdout, "success", true)
 	assertExecutions(t, obj,
-		executionWant{"firecrawl", "skipped", "unsupported_capability", ""},
-		executionWant{provider: "tavily", status: "success"},
+		executionWant{provider: "firecrawl", status: "success"},
+		executionWant{"tavily", "not_started", "fallback_satisfied", ""},
 		executionWant{"exa", "not_started", "fallback_satisfied", ""},
+		executionWant{"keenable", "not_started", "fallback_satisfied", ""},
 		executionWant{"tinyfish", "skipped", "unsupported_capability", ""},
 		executionWant{"anysearch", "skipped", "unsupported_capability", ""})
-	assertCalls(t, tavilyCalls, 1)
+	assertCalls(t, tavilyCalls, 0)
 	assertCalls(t, exaCalls, 0)
+	assertCalls(t, keenableSearch, 0)
+	assertCalls(t, keenableFetch, 0)
+	assertCalls(t, firecrawlSearch, 0)
+	assertCalls(t, firecrawlFetch, 1)
 }
 
 func TestSearchUsesSearchEndpointsWithFetchEnabled(t *testing.T) {

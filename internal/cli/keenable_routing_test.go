@@ -137,11 +137,9 @@ func TestKeenableFetchRouteIsIndependent(t *testing.T) {
 	assertCalls(t, searches, 0)
 }
 
-func TestKeenableThreeProviderMerge(t *testing.T) {
+func TestFirecrawlFourProviderMerge(t *testing.T) {
 	isolateConfig(t)
-	t.Setenv("TAVILY_API_KEY", testKey)
-	t.Setenv("EXA_API_KEY", exaKey)
-	t.Setenv("KEENABLE_API_KEY", keenableKey)
+	configureFourProviders(t)
 	const canonical, tavilyURL = "https://example.org/shared", "HTTPS://EXAMPLE.ORG:443/shared"
 	const exaURL, keenableURL = "https://example.org/exa", "https://example.org/keenable"
 	app, tavily := testApp(t, testKey, 10, bodyResponse(fmt.Sprintf(`{"results":[{"url":%q}]}`, tavilyURL)))
@@ -149,10 +147,13 @@ func TestKeenableThreeProviderMerge(t *testing.T) {
 	app.NewExa = exa.NewExa
 	keenable, fetches := addKeenable(t, &app, keenableKey, query, 10, bodyResponse(fmt.Sprintf(
 		`{"results":[{"url":%q},{},{"url":%q,"title":"Shared","snippet":"Keenable snippet"}]}`, keenableURL, canonical)), nil)
+	firecrawl, scrapes := addFirecrawl(t, &app, firecrawlKey, 10, bodyResponse(fmt.Sprintf(
+		`{"success":true,"data":{"web":[{"url":%q,"position":8,"title":"Firecrawl title","description":"Firecrawl snippet"}]}}`, canonical)), nil)
 	stdout, _ := run(t, context.Background(), app, 0, "search", query, "--strategy", "merge")
 	obj := envelope(t, stdout, "search", "success")
 	assertExecutions(t, obj, executionWant{provider: "tavily", status: "success"},
-		executionWant{provider: "exa", status: "success"}, executionWant{provider: "keenable", status: "success"})
+		executionWant{provider: "exa", status: "success"}, executionWant{provider: "keenable", status: "success"},
+		executionWant{provider: "firecrawl", status: "success"})
 	assertResultURLs(t, obj, tavilyURL, exaURL, keenableURL)
 	want := map[string]any{
 		"url": tavilyURL, "title": "Shared", "snippet": "Keenable snippet", "content": nil,
@@ -160,6 +161,7 @@ func TestKeenableThreeProviderMerge(t *testing.T) {
 			map[string]any{"provider": "tavily", "url": tavilyURL, "rank": float64(1)},
 			map[string]any{"provider": "exa", "url": canonical, "rank": float64(2)},
 			map[string]any{"provider": "keenable", "url": canonical, "rank": float64(3)},
+			map[string]any{"provider": "firecrawl", "url": canonical, "rank": float64(8)},
 		},
 	}
 	if results := obj["results"].([]any); len(results) == 0 || !reflect.DeepEqual(results[0], want) {
@@ -168,7 +170,9 @@ func TestKeenableThreeProviderMerge(t *testing.T) {
 	assertCalls(t, tavily, 1)
 	assertCalls(t, exaCalls, 1)
 	assertCalls(t, keenable, 1)
+	assertCalls(t, firecrawl, 1)
 	assertCalls(t, fetches, 0)
+	assertCalls(t, scrapes, 0)
 }
 
 func TestKeenableThreeProviderMergeInterruptions(t *testing.T) {

@@ -21,6 +21,9 @@ func main() {
 		NewKeenable: func(key string) retrieval.SearchProvider {
 			return provider.NewKeenable(key, nil, "")
 		},
+		NewFirecrawl: func(key string) retrieval.SearchProvider {
+			return provider.NewFirecrawl(key, nil, "")
+		},
 		NewTavilyFetch: func(key string) retrieval.FetchProvider {
 			return provider.NewTavilyFetch(key, nil, "")
 		},
@@ -29,6 +32,9 @@ func main() {
 		},
 		NewKeenableFetch: func(key string) retrieval.FetchProvider {
 			return provider.NewKeenableFetch(key, nil, "")
+		},
+		NewFirecrawlFetch: func(key string) retrieval.FetchProvider {
+			return provider.NewFirecrawlFetch(key, nil, "")
 		},
 	}
 	os.Exit(run(app, os.Args[1:]))
