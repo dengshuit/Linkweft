@@ -29,6 +29,9 @@ func newApp(client *http.Client) cli.App {
 		NewFirecrawl: func(key, baseURL string) retrieval.SearchProvider {
 			return provider.NewFirecrawl(key, client, baseURL)
 		},
+		NewAnySearch: func(key, baseURL string) retrieval.SearchProvider {
+			return provider.NewAnySearch(key, client, baseURL)
+		},
 		NewTavilyFetch: func(key, baseURL string) retrieval.FetchProvider {
 			return provider.NewTavilyFetch(key, client, baseURL)
 		},
@@ -40,6 +43,9 @@ func newApp(client *http.Client) cli.App {
 		},
 		NewFirecrawlFetch: func(key, baseURL string) retrieval.FetchProvider {
 			return provider.NewFirecrawlFetch(key, client, baseURL)
+		},
+		NewAnySearchFetch: func(key, baseURL string) retrieval.FetchProvider {
+			return provider.NewAnySearchFetch(key, client, baseURL)
 		},
 	}
 }

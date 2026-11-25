@@ -45,6 +45,9 @@ func TestProviderBaseURLPrecedence(t *testing.T) {
 		{"firecrawl", "https://api.firecrawl.dev", "Bearer " + gatewayKey, "",
 			gatewayOperation{"/v2/search", `{"query":"fixture","limit":10,"sources":["web"],"highlights":false}`, `{"success":true,"data":{"web":[{"url":"https://example.org/article"}]}}`},
 			gatewayOperation{"/v2/scrape", `{"url":"https://example.org/article","formats":["markdown"],"onlyMainContent":true}`, `{"success":true,"data":{"markdown":"fixture body"}}`}},
+		{"anysearch", "https://api.anysearch.com", "Bearer " + gatewayKey, "",
+			gatewayOperation{"/v1/search", `{"query":"fixture","max_results":10}`, anySearchHit},
+			gatewayOperation{"/v1/extract", `{"url":"https://example.org/article"}`, anySearchDocument}},
 	} {
 		t.Run(provider.name, func(t *testing.T) {
 			serve := func(w http.ResponseWriter, r *http.Request, prefix string) {
@@ -63,11 +66,7 @@ func TestProviderBaseURLPrecedence(t *testing.T) {
 					r.Header.Get("Authorization") != provider.authorization || r.Header.Get("X-API-Key") != provider.apiKey {
 					t.Error("unexpected method, content type or authentication")
 				}
-				var body, want map[string]any
-				if json.NewDecoder(r.Body).Decode(&body) != nil || json.Unmarshal([]byte(op.request), &want) != nil ||
-					!reflect.DeepEqual(body, want) {
-					t.Errorf("request body = %#v, want %s", body, op.request)
-				}
+				assertGatewayRequestJSON(t, r.Body, op.request)
 				io.WriteString(w, op.response)
 			}
 			const (
@@ -268,6 +267,14 @@ func assertInvalidBaseURL(t *testing.T, provider, field, config string) {
 				t.Errorf("text preflight exit = %d, stdout = %q, stderr = %q", code, textStdout.String(), textStderr.String())
 			}
 		})
+	}
+}
+
+func assertGatewayRequestJSON(t *testing.T, input io.Reader, expected string) {
+	t.Helper()
+	var body, want map[string]any
+	if json.NewDecoder(input).Decode(&body) != nil || json.Unmarshal([]byte(expected), &want) != nil || !reflect.DeepEqual(body, want) {
+		t.Errorf("request body = %#v, want %s", body, expected)
 	}
 }
 

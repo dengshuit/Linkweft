@@ -18,7 +18,7 @@ func TestSearchMergeCandidateOrder(t *testing.T) {
 	isolateConfig(t)
 	t.Setenv("TAVILY_API_KEY", testKey)
 	t.Setenv("EXA_API_KEY", exaKey)
-	t.Setenv("ANYSEARCH_API_KEY", "test-only-anysearch-key")
+	t.Setenv("TINYFISH_API_KEY", "test-only-tinyfish-key")
 	const tavilyURL, exaURL = "HTTPS://EXAMPLE.ORG:443/result", "https://example.org/result"
 	for _, tc := range []struct {
 		name, priority, selected string
@@ -57,7 +57,7 @@ func TestSearchMergeCandidateOrder(t *testing.T) {
 				sources[0], sources[1] = sources[1], sources[0]
 			}
 			if tc.skip {
-				executions = append(executions, executionWant{provider: "anysearch", status: "skipped", reason: "unsupported_capability"})
+				executions = append(executions, executionWant{provider: "tinyfish", status: "skipped", reason: "unsupported_capability"})
 			}
 			assertExecutions(t, response, executions...)
 			want := []any{map[string]any{"url": address, "title": "Exa title", "snippet": "Tavily snippet", "content": nil, "sources": sources}}

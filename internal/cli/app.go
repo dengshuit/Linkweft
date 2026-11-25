@@ -17,10 +17,12 @@ type App struct {
 	NewExa            func(apiKey, baseURL string) retrieval.SearchProvider
 	NewKeenable       func(apiKey, baseURL string) retrieval.SearchProvider
 	NewFirecrawl      func(apiKey, baseURL string) retrieval.SearchProvider
+	NewAnySearch      func(apiKey, baseURL string) retrieval.SearchProvider
 	NewTavilyFetch    func(apiKey, baseURL string) retrieval.FetchProvider
 	NewExaFetch       func(apiKey, baseURL string) retrieval.FetchProvider
 	NewKeenableFetch  func(apiKey, baseURL string) retrieval.FetchProvider
 	NewFirecrawlFetch func(apiKey, baseURL string) retrieval.FetchProvider
+	NewAnySearchFetch func(apiKey, baseURL string) retrieval.FetchProvider
 }
 
 func (a App) Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {

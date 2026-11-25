@@ -32,6 +32,11 @@ func (r searchResponse) candidates(snippetField string) ([]retrieval.Candidate, 
 			candidate.Snippet = optionalText(result.Content)
 		case "snippet":
 			candidate.Snippet = optionalText(result.Snippet)
+		case "snippet+content":
+			candidate.Snippet = optionalText(result.Snippet)
+			if content := optionalText(result.Content); content != nil {
+				candidate.Content = &retrieval.Content{Text: *content, Format: "unknown", Freshness: "unknown"}
+			}
 		}
 		results[i] = candidate
 	}
