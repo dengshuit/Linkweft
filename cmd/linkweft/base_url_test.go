@@ -30,24 +30,27 @@ type gatewayOperation struct {
 func TestProviderBaseURLPrecedence(t *testing.T) {
 	isolateProviderKeys(t)
 	for _, provider := range []struct {
-		name, origin, authorization, apiKey string
-		search, fetch                       gatewayOperation
+		name, searchOrigin, fetchOrigin, authorization, apiKey string
+		search, fetch                                          gatewayOperation
 	}{
-		{"tavily", "https://api.tavily.com", "Bearer " + gatewayKey, "",
+		{"tavily", "https://api.tavily.com", "https://api.tavily.com", "Bearer " + gatewayKey, "",
 			gatewayOperation{"/search", `{"query":"fixture","max_results":10,"search_depth":"basic","topic":"general","auto_parameters":false,"include_answer":false,"include_raw_content":false,"include_images":false,"include_image_descriptions":false}`, `{"results":[{"url":"https://example.org/article"}]}`},
 			gatewayOperation{"/extract", `{"urls":["https://example.org/article"],"format":"markdown","extract_depth":"basic"}`, `{"results":[{"raw_content":"fixture body"}]}`}},
-		{"exa", "https://api.exa.ai", "", gatewayKey,
+		{"exa", "https://api.exa.ai", "https://api.exa.ai", "", gatewayKey,
 			gatewayOperation{"/search", `{"query":"fixture","numResults":10,"type":"auto","contents":{"text":false,"highlights":false}}`, `{"results":[{"url":"https://example.org/article"}]}`},
 			gatewayOperation{"/contents", `{"urls":["https://example.org/article"],"text":true}`, `{"results":[{"text":"fixture body"}]}`}},
-		{"keenable", "https://api.keenable.ai", "", gatewayKey,
+		{"keenable", "https://api.keenable.ai", "https://api.keenable.ai", "", gatewayKey,
 			gatewayOperation{"/v1/search", `{"query":"fixture","max_results":10,"disable_cards":true}`, `{"results":[{"url":"https://example.org/article"}]}`},
 			gatewayOperation{"/v1/fetch", `{"urls":["https://example.org/article"]}`, `{"results":[{"content":"fixture body"}]}`}},
-		{"firecrawl", "https://api.firecrawl.dev", "Bearer " + gatewayKey, "",
+		{"firecrawl", "https://api.firecrawl.dev", "https://api.firecrawl.dev", "Bearer " + gatewayKey, "",
 			gatewayOperation{"/v2/search", `{"query":"fixture","limit":10,"sources":["web"],"highlights":false}`, `{"success":true,"data":{"web":[{"url":"https://example.org/article"}]}}`},
 			gatewayOperation{"/v2/scrape", `{"url":"https://example.org/article","formats":["markdown"],"onlyMainContent":true}`, `{"success":true,"data":{"markdown":"fixture body"}}`}},
-		{"anysearch", "https://api.anysearch.com", "Bearer " + gatewayKey, "",
+		{"anysearch", "https://api.anysearch.com", "https://api.anysearch.com", "Bearer " + gatewayKey, "",
 			gatewayOperation{"/v1/search", `{"query":"fixture","max_results":10}`, anySearchHit},
 			gatewayOperation{"/v1/extract", `{"url":"https://example.org/article"}`, anySearchDocument}},
+		{"tinyfish", "https://api.search.tinyfish.ai", "https://api.fetch.tinyfish.ai", "", gatewayKey,
+			gatewayOperation{"/?page=0&query=fixture", "", tinyFishHit},
+			gatewayOperation{"/", `{"urls":["https://example.org/article"],"format":"markdown"}`, tinyFishDocument}},
 	} {
 		t.Run(provider.name, func(t *testing.T) {
 			serve := func(w http.ResponseWriter, r *http.Request, prefix string) {
@@ -62,11 +65,17 @@ func TestProviderBaseURLPrecedence(t *testing.T) {
 					w.WriteHeader(http.StatusNotFound)
 					return
 				}
-				if r.Method != http.MethodPost || r.Header.Get("Content-Type") != "application/json" ||
-					r.Header.Get("Authorization") != provider.authorization || r.Header.Get("X-API-Key") != provider.apiKey {
-					t.Error("unexpected method, content type or authentication")
+				if r.Header.Get("Authorization") != provider.authorization || r.Header.Get("X-API-Key") != provider.apiKey {
+					t.Error("unexpected authentication")
 				}
-				assertGatewayRequestJSON(t, r.Body, op.request)
+				if op.request == "" {
+					assertTinyFishSearchRequest(t, r, "fixture")
+				} else {
+					if r.Method != http.MethodPost || r.Header.Get("Content-Type") != "application/json" {
+						t.Error("unexpected method or content type")
+					}
+					assertGatewayRequestJSON(t, r.Body, op.request)
+				}
 				io.WriteString(w, op.response)
 			}
 			const (
@@ -99,7 +108,7 @@ func TestProviderBaseURLPrecedence(t *testing.T) {
 						continue
 					}
 					t.Run(tc.name+"/"+variant.name, func(t *testing.T) {
-						bases := [4]string{builtIn: provider.origin}
+						var bases [4]string
 						var config strings.Builder
 						fmt.Fprintf(&config, "[providers.%s]\napi_key = %q\n", provider.name, gatewayKey)
 						fields := [4]string{shared: "base_url", search: "search_base_url", fetch: "fetch_base_url"}
@@ -115,8 +124,11 @@ func TestProviderBaseURLPrecedence(t *testing.T) {
 						var requested []string
 						client := loopbackClient(t, func(r *http.Request, network http.RoundTripper) (*http.Response, error) {
 							requested = append(requested, r.URL.String())
-							if r.URL.Scheme+"://"+r.URL.Host == provider.origin {
-								defer r.Body.Close()
+							origin := r.URL.Scheme + "://" + r.URL.Host
+							if origin == provider.searchOrigin || origin == provider.fetchOrigin {
+								if r.Body != nil {
+									defer r.Body.Close()
+								}
 								recorder := httptest.NewRecorder()
 								serve(recorder, r, "")
 								return recorder.Result(), nil
@@ -131,7 +143,14 @@ func TestProviderBaseURLPrecedence(t *testing.T) {
 								t.Fatalf("unexpected %s response: %+v", op.name, response)
 							}
 						}
-						want := []string{bases[tc.want[0]] + provider.search.path, bases[tc.want[1]] + provider.fetch.path}
+						searchBase, fetchBase := bases[tc.want[0]], bases[tc.want[1]]
+						if tc.want[0] == builtIn {
+							searchBase = provider.searchOrigin
+						}
+						if tc.want[1] == builtIn {
+							fetchBase = provider.fetchOrigin
+						}
+						want := []string{searchBase + provider.search.path, fetchBase + provider.fetch.path}
 						if !slices.Equal(requested, want) {
 							t.Errorf("request URLs = %v, want %v", requested, want)
 						}
@@ -287,15 +306,28 @@ func isolateProviderKeys(t *testing.T) {
 
 func runGatewayCLI(t *testing.T, app cli.App, wantCode int, args ...string) (retrieval.Response, string, string) {
 	t.Helper()
+	return runGatewayCLIContext(t, context.Background(), app, wantCode, args...)
+}
+
+func runGatewayCLIContext(t *testing.T, ctx context.Context, app cli.App, wantCode int, args ...string) (retrieval.Response, string, string) {
+	t.Helper()
 	var stdout, stderr bytes.Buffer
 	var response retrieval.Response
-	if code := app.Run(context.Background(), args, &stdout, &stderr); code != wantCode {
+	if code := app.Run(ctx, args, &stdout, &stderr); code != wantCode {
 		t.Fatalf("exit = %d, want %d, stdout = %q, stderr = %q", code, wantCode, stdout.String(), stderr.String())
 	}
 	if err := json.Unmarshal(stdout.Bytes(), &response); err != nil {
 		t.Fatalf("invalid CLI JSON: %v", err)
 	}
 	return response, stdout.String(), stderr.String()
+}
+
+func gatewayWarningOutput(warnings []retrieval.Warning) string {
+	var stderr strings.Builder
+	for _, warning := range warnings {
+		fmt.Fprintf(&stderr, "%s: %s\n", warning.Code, warning.Message)
+	}
+	return stderr.String()
 }
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -310,7 +342,9 @@ func loopbackClient(t *testing.T, handle func(*http.Request, http.RoundTripper) 
 	t.Cleanup(network.CloseIdleConnections)
 	loopback := roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		if !net.ParseIP(r.URL.Hostname()).IsLoopback() {
-			r.Body.Close()
+			if r.Body != nil {
+				r.Body.Close()
+			}
 			t.Errorf("unexpected outbound request to %s", r.URL.Host)
 			return nil, errors.New("test transport only connects to loopback")
 		}

@@ -46,7 +46,8 @@ func (a App) fetch(cmd *cobra.Command, address string, opts fetchFlags) (retriev
 		timeout = cfg.Fetch.Timeout
 	}
 	factories := map[string]func(string, string) retrieval.FetchProvider{
-		"tavily": a.NewTavilyFetch, "exa": a.NewExaFetch, "keenable": a.NewKeenableFetch, "firecrawl": a.NewFirecrawlFetch, "anysearch": a.NewAnySearchFetch,
+		"tavily": a.NewTavilyFetch, "exa": a.NewExaFetch, "keenable": a.NewKeenableFetch, "firecrawl": a.NewFirecrawlFetch,
+		"anysearch": a.NewAnySearchFetch, "tinyfish": a.NewTinyFishFetch,
 	}
 	registry := make(map[string]retrieval.FetchProvider, len(names))
 	for _, name := range names {

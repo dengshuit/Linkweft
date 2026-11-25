@@ -21,7 +21,6 @@ func TestAnySearchRouting(t *testing.T) {
 	const exaResults = `{"results":[{"url":"https://example.org/article"},{"url":"https://example.org/next"}]}`
 	const exaMerge = `{"results":[{"url":"HTTPS://EXAMPLE.ORG:443/article"}]}`
 	const exaDocument = `{"results":[{"text":"Exa body"}]}`
-	const skip = "unsupported_capability"
 	const stop = "fallback_satisfied"
 	const searchPriority = "[search]\npriority = ['anysearch']\n"
 	for _, tc := range []struct {
@@ -32,22 +31,23 @@ func TestAnySearchRouting(t *testing.T) {
 		fixtures                                 map[string]string
 		requests                                 []string
 		executions                               []gatewayExecution
+		merged                                   []retrieval.Result
 	}{
 		{name: "default search", operation: "search", arg: "fixture", results: 1,
 			fixtures: map[string]string{"/tavily/search": exaMerge}, requests: []string{"/tavily/search"},
 			executions: []gatewayExecution{{provider: "tavily", status: "success"}, {"exa", "not_started", stop, ""},
 				{"keenable", "not_started", stop, ""}, {"firecrawl", "not_started", stop, ""},
-				{"anysearch", "not_started", stop, ""}, {"tinyfish", "skipped", skip, ""}}},
+				{"anysearch", "not_started", stop, ""}, {"tinyfish", "not_started", stop, ""}}},
 		{name: "default fetch", operation: "fetch", arg: gatewayArticle,
 			fixtures: map[string]string{"/firecrawl/v2/scrape": `{"success":true,"data":{"markdown":"Firecrawl body"}}`},
 			requests: []string{"/firecrawl/v2/scrape"}, executions: []gatewayExecution{{provider: "firecrawl", status: "success"},
 				{"tavily", "not_started", stop, ""}, {"exa", "not_started", stop, ""}, {"keenable", "not_started", stop, ""},
-				{"tinyfish", "skipped", skip, ""}, {"anysearch", "not_started", stop, ""}}},
+				{"tinyfish", "not_started", stop, ""}, {"anysearch", "not_started", stop, ""}}},
 		{name: "configured search with appended defaults", operation: "search", arg: "fixture", priority: searchPriority, results: 1,
 			fixtures: map[string]string{"/anysearch/v1/search": anySearchHit}, requests: []string{"/anysearch/v1/search"},
 			executions: []gatewayExecution{{provider: "anysearch", status: "success"}, {"tavily", "not_started", stop, ""},
 				{"exa", "not_started", stop, ""}, {"keenable", "not_started", stop, ""}, {"firecrawl", "not_started", stop, ""},
-				{"tinyfish", "skipped", skip, ""}}},
+				{"tinyfish", "not_started", stop, ""}}},
 		{name: "explicit search overrides configuration", operation: "search", arg: "fixture", priority: searchPriority, selected: "exa,anysearch", results: 2,
 			fixtures: map[string]string{"/exa/search": exaResults}, requests: []string{"/exa/search"},
 			executions: []gatewayExecution{{provider: "exa", status: "success"}, {"anysearch", "not_started", stop, ""}}},
@@ -65,7 +65,7 @@ func TestAnySearchRouting(t *testing.T) {
 			requests: []string{"/anysearch/v1/extract", "/exa/contents"},
 			executions: []gatewayExecution{{provider: "anysearch", status: "empty"}, {provider: "exa", status: "success"},
 				{"firecrawl", "not_started", stop, ""}, {"tavily", "not_started", stop, ""}, {"keenable", "not_started", stop, ""},
-				{"tinyfish", "skipped", skip, ""}}},
+				{"tinyfish", "not_started", stop, ""}}},
 		{name: "invalid extract URL falls back", operation: "fetch", arg: gatewayArticle, selected: "anysearch,exa", documentText: "Exa body",
 			fixtures: map[string]string{
 				"/anysearch/v1/extract": `{"code":0,"error_code":"invalid_extract_url","data":{"content":"failed AnySearch body"}}`,
@@ -75,19 +75,76 @@ func TestAnySearchRouting(t *testing.T) {
 			executions: []gatewayExecution{{provider: "anysearch", status: "error", code: "upstream_error"}, {provider: "exa", status: "success"}}},
 		{name: "merge preserves sources", operation: "search", arg: "fixture", selected: "anysearch,exa", merge: true, results: 1,
 			fixtures: map[string]string{"/anysearch/v1/search": mergeResponse, "/exa/search": exaMerge}, requests: []string{"/anysearch/v1/search", "/exa/search"},
-			executions: []gatewayExecution{{provider: "anysearch", status: "success"}, {provider: "exa", status: "success"}}},
+			executions: []gatewayExecution{{provider: "anysearch", status: "success"}, {provider: "exa", status: "success"}},
+			merged: []retrieval.Result{{URL: gatewayArticle, Sources: []retrieval.Source{
+				{Provider: "anysearch", URL: gatewayArticle, Rank: 2}, {Provider: "exa", URL: "HTTPS://EXAMPLE.ORG:443/article", Rank: 1},
+			}, Content: &retrieval.Content{Text: "AnySearch content", Provider: "anysearch", Format: "unknown", Freshness: "unknown"}}}},
+		{name: "configured TinyFish search stops after one valid result", operation: "search", arg: "fixture", priority: "[search]\npriority = ['tinyfish']\n", results: 1,
+			fixtures: map[string]string{"/tinyfish/": tinyFishHit}, requests: []string{"/tinyfish/"},
+			executions: []gatewayExecution{{provider: "tinyfish", status: "success"}, {"tavily", "not_started", stop, ""},
+				{"exa", "not_started", stop, ""}, {"keenable", "not_started", stop, ""}, {"firecrawl", "not_started", stop, ""},
+				{"anysearch", "not_started", stop, ""}}},
+		{name: "configured TinyFish fetch stops at first body", operation: "fetch", arg: gatewayArticle, priority: "[fetch]\npriority = ['tinyfish']\n",
+			fixtures: map[string]string{"/tinyfish/": tinyFishDocument}, requests: []string{"/tinyfish/"}, documentText: "fixture body",
+			executions: []gatewayExecution{{provider: "tinyfish", status: "success"}, {"firecrawl", "not_started", stop, ""},
+				{"tavily", "not_started", stop, ""}, {"exa", "not_started", stop, ""}, {"keenable", "not_started", stop, ""},
+				{"anysearch", "not_started", stop, ""}}},
+		{name: "blank TinyFish body falls back", operation: "fetch", arg: gatewayArticle, selected: "tinyfish,exa", documentText: "Exa body",
+			fixtures: map[string]string{"/tinyfish/": `{"results":[{"url":"https://example.org/article","text":" \t"}],"errors":[]}`, "/exa/contents": exaDocument},
+			requests: []string{"/tinyfish/", "/exa/contents"}, executions: []gatewayExecution{{provider: "tinyfish", status: "empty"}, {provider: "exa", status: "success"}}},
+		{name: "TinyFish target failure takes precedence over body", operation: "fetch", arg: gatewayArticle, selected: "tinyfish,exa", documentText: "Exa body",
+			fixtures: map[string]string{"/tinyfish/": `{"results":[{"url":"https://example.org/article","text":"failed body"}],"errors":[{"url":"https://example.org/article","error":"bot_blocked"}]}`,
+				"/exa/contents": exaDocument},
+			requests: []string{"/tinyfish/", "/exa/contents"}, executions: []gatewayExecution{{provider: "tinyfish", status: "error", code: "content_blocked"}, {provider: "exa", status: "success"}}},
+		{name: "TinyFish target failure missing code falls back", operation: "fetch", arg: gatewayArticle, selected: "tinyfish,exa", documentText: "Exa body",
+			fixtures: map[string]string{"/tinyfish/": `{"results":[{"url":"https://example.org/article","text":"failed body"}],"errors":[{"url":"https://example.org/article"}]}`,
+				"/exa/contents": exaDocument},
+			requests: []string{"/tinyfish/", "/exa/contents"}, executions: []gatewayExecution{{provider: "tinyfish", status: "error", code: "invalid_response"}, {provider: "exa", status: "success"}}},
+		{name: "TinyFish target failure takes precedence over malformed result", operation: "fetch", arg: gatewayArticle, selected: "tinyfish,exa", documentText: "Exa body",
+			fixtures: map[string]string{"/tinyfish/": `{"results":[{"url":"https://example.org/article","text":"failed body"},{"url":123}],"errors":[{"url":"https://example.org/article","error":"bot_blocked"}]}`,
+				"/exa/contents": exaDocument},
+			requests: []string{"/tinyfish/", "/exa/contents"}, executions: []gatewayExecution{{provider: "tinyfish", status: "error", code: "content_blocked"}, {provider: "exa", status: "success"}}},
+		{name: "six real providers explicit fallback subset", operation: "search", arg: "fixture", priority: "[search]\npriority = ['exa','tinyfish']\n", selected: "tinyfish,exa", exit: 1,
+			fixtures: map[string]string{"/tinyfish/": "", "/exa/search": ""}, requests: []string{"/tinyfish/", "/exa/search"},
+			executions: []gatewayExecution{{provider: "tinyfish", status: "error", code: "upstream_error"}, {provider: "exa", status: "error", code: "upstream_error"}}},
+		{name: "six real providers explicit merge subset", operation: "search", arg: "fixture", priority: "[search]\npriority = ['exa','tinyfish']\n", selected: "tinyfish,exa", exit: 1, merge: true,
+			fixtures: map[string]string{"/tinyfish/": "", "/exa/search": ""}, requests: []string{"/exa/search", "/tinyfish/"},
+			executions: []gatewayExecution{{provider: "tinyfish", status: "error", code: "upstream_error"}, {provider: "exa", status: "error", code: "upstream_error"}}},
+		{name: "six real providers merge a shared URL", operation: "search", arg: "fixture", merge: true, results: 1,
+			fixtures: map[string]string{
+				"/tavily/search": tinyFishHit, "/exa/search": exaMerge, "/keenable/v1/search": tinyFishHit,
+				"/firecrawl/v2/search": `{"success":true,"data":{"web":[{"url":"https://example.org/article"}]}}`,
+				"/anysearch/v1/search": anySearchHit, "/tinyfish/": `{"results":[{"url":"https://example.org/article","position":7}]}`,
+			},
+			requests: []string{"/anysearch/v1/search", "/exa/search", "/firecrawl/v2/search", "/keenable/v1/search", "/tavily/search", "/tinyfish/"},
+			executions: []gatewayExecution{
+				{provider: "tavily", status: "success"}, {provider: "exa", status: "success"}, {provider: "keenable", status: "success"},
+				{provider: "firecrawl", status: "success"}, {provider: "anysearch", status: "success"}, {provider: "tinyfish", status: "success"},
+			},
+			merged: []retrieval.Result{{URL: gatewayArticle, Sources: []retrieval.Source{
+				{Provider: "tavily", URL: gatewayArticle, Rank: 1},
+				{Provider: "exa", URL: "HTTPS://EXAMPLE.ORG:443/article", Rank: 1},
+				{Provider: "keenable", URL: gatewayArticle, Rank: 1},
+				{Provider: "firecrawl", URL: gatewayArticle, Rank: 1},
+				{Provider: "anysearch", URL: gatewayArticle, Rank: 1},
+				{Provider: "tinyfish", URL: gatewayArticle, Rank: 7},
+			}}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var mu sync.Mutex
 			var requests []string
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				mu.Lock()
-				requests = append(requests, r.URL.RequestURI())
+				requests = append(requests, r.URL.Path)
 				mu.Unlock()
-				body, ok := tc.fixtures[r.URL.RequestURI()]
+				body, ok := tc.fixtures[r.URL.Path]
 				if !ok {
 					t.Errorf("unexpected request to %s", r.URL.RequestURI())
 					w.WriteHeader(http.StatusNotFound)
+					return
+				}
+				if body == "" {
+					w.WriteHeader(http.StatusBadGateway)
 					return
 				}
 				io.WriteString(w, body)
@@ -114,19 +171,14 @@ func TestAnySearchRouting(t *testing.T) {
 			if tc.exit != 0 {
 				outcome = "error"
 			}
-			if response.Outcome != outcome || len(response.Results) != tc.results {
+			if response.Outcome != outcome || response.Results == nil || len(response.Results) != tc.results {
 				t.Errorf("response = %+v, want %s with %d results", response, outcome, tc.results)
 			}
 			if tc.documentText != "" && (response.Document == nil || response.Document.Content.Text != tc.documentText) {
 				t.Errorf("document = %+v, want body %q", response.Document, tc.documentText)
 			}
-			if tc.merge {
-				want := []retrieval.Result{{URL: gatewayArticle, Sources: []retrieval.Source{
-					{Provider: "anysearch", URL: gatewayArticle, Rank: 2}, {Provider: "exa", URL: "HTTPS://EXAMPLE.ORG:443/article", Rank: 1},
-				}, Content: &retrieval.Content{Text: "AnySearch content", Provider: "anysearch", Format: "unknown", Freshness: "unknown"}}}
-				if !reflect.DeepEqual(response.Results, want) {
-					t.Errorf("merged results = %+v, want %+v", response.Results, want)
-				}
+			if tc.merged != nil && !reflect.DeepEqual(response.Results, tc.merged) {
+				t.Errorf("merged results = %+v, want %+v", response.Results, tc.merged)
 			}
 			mu.Lock()
 			defer mu.Unlock()

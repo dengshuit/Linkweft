@@ -24,7 +24,9 @@ const (
 	anySearchDocument = `{"code":0,"data":{"url":"https://example.org/article","content":"fixture body"}}`
 )
 
-var anySearchOperations = []struct{ name, arg, path, body string }{
+type gatewayFixture struct{ name, arg, uri, response string }
+
+var anySearchOperations = []gatewayFixture{
 	{"search", "fixture", "/v1/search", anySearchHit},
 	{"fetch", gatewayArticle, "/v1/extract", anySearchDocument},
 }
@@ -177,11 +179,11 @@ func TestAnySearchCredentialsAndPreflight(t *testing.T) {
 					client := loopbackClient(t, func(r *http.Request, _ http.RoundTripper) (*http.Response, error) {
 						defer r.Body.Close()
 						calls++
-						if r.URL.String() != "https://api.anysearch.com"+op.path || r.Header.Get("Authorization") != "Bearer "+envKey {
+						if r.URL.String() != "https://api.anysearch.com"+op.uri || r.Header.Get("Authorization") != "Bearer "+envKey {
 							t.Error("unexpected default URL or effective credential")
 						}
 						w := httptest.NewRecorder()
-						io.WriteString(w, op.body)
+						io.WriteString(w, op.response)
 						return w.Result(), nil
 					})
 					args := []string{op.name, op.arg, "--providers", "anysearch"}
@@ -320,9 +322,14 @@ func TestAnySearchFetchResponses(t *testing.T) {
 }
 
 func TestAnySearchHTTPFailures(t *testing.T) {
+	testProviderHTTPFailures(t, "anysearch", anySearchOperations, anySearchConfig)
+}
+
+func testProviderHTTPFailures(t *testing.T, provider string, operations []gatewayFixture, config func(*testing.T, string) string) {
+	t.Helper()
 	isolateProviderKeys(t)
 	const marker, username, password, apiKey = "private quota response", "fake-generated-account", "fake-generated-password", "fake-generated-api-key"
-	for _, op := range anySearchOperations {
+	for _, op := range operations {
 		for _, tc := range []struct {
 			status int
 			issue  string
@@ -336,8 +343,8 @@ func TestAnySearchHTTPFailures(t *testing.T) {
 				var calls atomic.Int32
 				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					calls.Add(1)
-					if r.URL.Path != op.path {
-						t.Errorf("unexpected request to %s", r.URL.Path)
+					if r.URL.RequestURI() != op.uri {
+						t.Errorf("unexpected request to %s", r.URL.RequestURI())
 						w.WriteHeader(http.StatusNotFound)
 						return
 					}
@@ -351,17 +358,17 @@ func TestAnySearchHTTPFailures(t *testing.T) {
 				}))
 				defer server.Close()
 				app := newApp(server.Client())
-				args := []string{op.name, op.arg, "--providers", "anysearch", "--config", anySearchConfig(t, server.URL)}
+				args := []string{op.name, op.arg, "--providers", provider, "--config", config(t, server.URL)}
 				response, stdout, stderr := runGatewayCLI(t, app, 1, args...)
-				assertGatewayExecutions(t, response, gatewayExecution{provider: "anysearch", status: "error", code: tc.issue})
-				if calls.Load() != 1 || response.Outcome != "error" || stderr != "" {
+				assertGatewayExecutions(t, response, gatewayExecution{provider: provider, status: "error", code: tc.issue})
+				if calls.Load() != 1 || response.Outcome != "error" || stderr != gatewayWarningOutput(response.Warnings) {
 					t.Errorf("calls = %d, response = %+v, stderr = %q", calls.Load(), response, stderr)
 				}
 				outputs := stdout + stderr
 				if tc.status == http.StatusPaymentRequired {
 					var textOut, textErr bytes.Buffer
 					if code := app.Run(context.Background(), append(args, "--output", "text"), &textOut, &textErr); code != 1 ||
-						calls.Load() != 2 || textOut.Len() != 0 || !strings.Contains(textErr.String(), "anysearch: error: upstream_error:") {
+						calls.Load() != 2 || textOut.Len() != 0 || !strings.Contains(textErr.String(), provider+": error: upstream_error:") {
 						t.Errorf("text exit = %d, calls = %d or unexpected streams", code, calls.Load())
 					}
 					outputs += textOut.String() + textErr.String()
@@ -377,6 +384,11 @@ func TestAnySearchHTTPFailures(t *testing.T) {
 }
 
 func TestAnySearchFetchUsesRemainingBudget(t *testing.T) {
+	testFetchUsesRemainingBudget(t, "anysearch", "/v1/extract")
+}
+
+func testFetchUsesRemainingBudget(t *testing.T, provider, providerPath string) {
+	t.Helper()
 	isolateProviderKeys(t)
 	var calls []string
 	client := loopbackClient(t, func(r *http.Request, network http.RoundTripper) (*http.Response, error) {
@@ -401,7 +413,7 @@ func TestAnySearchFetchUsesRemainingBudget(t *testing.T) {
 	defer server.Close()
 	path := writeCLIConfig(t, fmt.Sprintf(`[fetch]
 timeout = '700ms'
-[providers.anysearch]
+[providers.%s]
 api_key = %q
 base_url = %q
 fetch_timeout = '300ms'
@@ -411,13 +423,13 @@ base_url = %q
 [providers.tavily]
 api_key = %q
 base_url = %q
-`, gatewayKey, server.URL, gatewayKey, server.URL, gatewayKey, server.URL))
-	response, _, _ := runGatewayCLI(t, newApp(client), 1, "fetch", gatewayArticle, "--config", path, "--providers", "anysearch,exa,tavily")
+`, provider, gatewayKey, server.URL, gatewayKey, server.URL, gatewayKey, server.URL))
+	response, _, _ := runGatewayCLI(t, newApp(client), 1, "fetch", gatewayArticle, "--config", path, "--providers", provider+",exa,tavily")
 	assertGatewayExecutions(t, response,
-		gatewayExecution{"anysearch", "timeout", "provider_timeout", "provider_timeout"},
+		gatewayExecution{provider, "timeout", "provider_timeout", "provider_timeout"},
 		gatewayExecution{"exa", "timeout", "command_timeout", "command_timeout"},
 		gatewayExecution{provider: "tavily", status: "not_started", reason: "command_timeout"})
-	if want := []string{"/v1/extract", "/contents"}; !slices.Equal(calls, want) {
+	if want := []string{providerPath, "/contents"}; !slices.Equal(calls, want) {
 		t.Errorf("requests = %v, want %v", calls, want)
 	}
 }

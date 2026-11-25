@@ -32,6 +32,9 @@ func newApp(client *http.Client) cli.App {
 		NewAnySearch: func(key, baseURL string) retrieval.SearchProvider {
 			return provider.NewAnySearch(key, client, baseURL)
 		},
+		NewTinyFish: func(key, baseURL string) retrieval.SearchProvider {
+			return provider.NewTinyFish(key, client, baseURL)
+		},
 		NewTavilyFetch: func(key, baseURL string) retrieval.FetchProvider {
 			return provider.NewTavilyFetch(key, client, baseURL)
 		},
@@ -46,6 +49,9 @@ func newApp(client *http.Client) cli.App {
 		},
 		NewAnySearchFetch: func(key, baseURL string) retrieval.FetchProvider {
 			return provider.NewAnySearchFetch(key, client, baseURL)
+		},
+		NewTinyFishFetch: func(key, baseURL string) retrieval.FetchProvider {
+			return provider.NewTinyFishFetch(key, client, baseURL)
 		},
 	}
 }

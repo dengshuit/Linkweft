@@ -51,6 +51,10 @@ func postJSONWithErrorMapping(
 	}
 	req.Header.Set(authHeader, authValue)
 	req.Header.Set("Content-Type", "application/json")
+	return doJSON(client, req, output, mapError)
+}
+
+func doJSON(client *http.Client, req *http.Request, output any, mapError func(int, io.Reader) *retrieval.Error) *retrieval.Error {
 	resp, err := client.Do(req)
 	if err != nil {
 		return requestError(err, "provider request failed")
