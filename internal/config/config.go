@@ -78,19 +78,25 @@ func Load(path *string) (Config, error) {
 	return resolve(file)
 }
 
+func configPath(path *string) (string, error) {
+	if path != nil {
+		return *path, nil
+	}
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return "", errors.New("cannot locate the user configuration directory")
+	}
+	return filepath.Join(dir, "linkweft", "config.toml"), nil
+}
+
 func readFile(path *string) (fileConfig, error) {
 	var cfg fileConfig
-	explicit := path != nil
-	if !explicit {
-		dir, err := os.UserConfigDir()
-		if err != nil {
-			return cfg, errors.New("cannot locate the user configuration directory")
-		}
-		defaultPath := filepath.Join(dir, "linkweft", "config.toml")
-		path = &defaultPath
+	filename, err := configPath(path)
+	if err != nil {
+		return cfg, err
 	}
-	data, err := os.ReadFile(*path)
-	if !explicit && errors.Is(err, fs.ErrNotExist) {
+	data, err := os.ReadFile(filename)
+	if path == nil && errors.Is(err, fs.ErrNotExist) {
 		return cfg, nil
 	}
 	if err != nil {

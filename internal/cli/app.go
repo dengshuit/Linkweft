@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"linkweft/internal/config"
 	"linkweft/internal/retrieval"
 )
 
@@ -74,7 +75,25 @@ func (a App) Run(ctx context.Context, args []string, stdout, stderr io.Writer) i
 		},
 	}
 	fetchOpts.bind(fetch)
-	root.AddCommand(search, fetch)
+	var initPath string
+	initCmd := &cobra.Command{
+		Use:                   "init [--config PATH]",
+		Short:                 "Create a TOML configuration file",
+		DisableFlagsInUseLine: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) != 0 {
+				return argError("init takes no positional arguments")
+			}
+			var path *string
+			if cmd.Flags().Changed("config") {
+				path = &initPath
+			}
+			exitCode = initializeConfig(path, stdout, stderr)
+			return nil
+		},
+	}
+	initCmd.Flags().StringVar(&initPath, "config", "", "path to the TOML configuration file")
+	root.AddCommand(search, fetch, initCmd)
 	root.SetHelpCommand(&cobra.Command{
 		Use:   "help [command]",
 		Short: "Show command help",
@@ -88,6 +107,9 @@ func (a App) Run(ctx context.Context, args []string, stdout, stderr io.Writer) i
 			case len(args) == 1 && args[0] == "fetch":
 				fetch.InitDefaultHelpFlag()
 				return fetch.Help()
+			case len(args) == 1 && args[0] == "init":
+				initCmd.InitDefaultHelpFlag()
+				return initCmd.Help()
 			default:
 				return argError("unknown help topic; use --help for usage")
 			}
@@ -116,12 +138,16 @@ func (a App) Run(ctx context.Context, args []string, stdout, stderr io.Writer) i
 		if !errors.As(err, &issue) {
 			issue = argError("invalid command or option; use --help for usage")
 		}
+		if executed == initCmd {
+			fmt.Fprintln(stderr, issue.Message)
+			return 2
+		}
 		response = retrieval.NewResponse(operation)
 		response.Outcome, response.Error = "error", issue
 		exitCode = 2
 	}
 	if response.SchemaVersion == 0 {
-		return 0
+		return exitCode
 	}
 	if err := writeResponse(stdout, stderr, response, output); err != nil {
 		fmt.Fprintln(stderr, "cannot write the command response")
@@ -130,6 +156,22 @@ func (a App) Run(ctx context.Context, args []string, stdout, stderr io.Writer) i
 		}
 	}
 	return exitCode
+}
+
+func initializeConfig(path *string, stdout, stderr io.Writer) int {
+	filename, created, err := config.Initialize(path)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	if !created {
+		filename = "configuration file already exists: " + filename
+	}
+	if _, err := fmt.Fprintln(stdout, filename); err != nil {
+		fmt.Fprintln(stderr, "cannot write the command response")
+		return 1
+	}
+	return 0
 }
 
 func argError(message string) *retrieval.Error {

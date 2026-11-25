@@ -19,6 +19,7 @@ import (
 )
 
 const offlineCLIEnv = "LINKWEFT_TEST_CLI"
+const offlineBinaryEnv = "LINKWEFT_TEST_BINARY"
 
 func TestOfflineCLIEntry(t *testing.T) {
 	if os.Getenv(offlineCLIEnv) == "" {
@@ -60,43 +61,54 @@ base_url = "https://gateway.example/anysearch"
 search_base_url = "https://gateway.example/tinyfish-search"
 fetch_base_url = "https://gateway.example/tinyfish-fetch"
 `)
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-			args := []string{"-test.run=^TestOfflineCLIEntry$", "--", "search", "fixture", "--providers", "tavily", "--config", config}
+			args := []string{"search", "fixture", "--providers", "tavily", "--config", config}
 			if tc.format != "" {
 				args = append(args, "--output", tc.format)
 			}
-			cmd := exec.CommandContext(ctx, os.Args[0], args...)
-			cmd.Env = append(os.Environ(), offlineCLIEnv+"=1")
-			var stdout, stderr bytes.Buffer
-			cmd.Stdout, cmd.Stderr = &stdout, &stderr
-			err := cmd.Run()
-			if cmd.ProcessState == nil || cmd.ProcessState.ExitCode() != tc.exit {
-				t.Fatalf("process = %v, err = %v, want exit %d; stdout=%q stderr=%q", cmd.ProcessState, err, tc.exit, stdout.String(), stderr.String())
-			}
+			stdout, stderr := runCLIProcess(t, tc.exit, args...)
 			if tc.format == "text" {
-				if stdout.String() != tc.stdout || !strings.Contains(stderr.String(), tc.diagnostic) {
-					t.Fatalf("stdout=%q stderr=%q, want stdout=%q and stderr containing %q", stdout.String(), stderr.String(), tc.stdout, tc.diagnostic)
+				if stdout != tc.stdout || !strings.Contains(stderr, tc.diagnostic) {
+					t.Fatalf("stdout=%q stderr=%q, want stdout=%q and stderr containing %q", stdout, stderr, tc.stdout, tc.diagnostic)
 				}
 				return
 			}
 			var response retrieval.Response
-			if err := json.Unmarshal(stdout.Bytes(), &response); err != nil || stderr.Len() != 0 {
-				t.Fatalf("stdout=%q stderr=%q, want one JSON response and no diagnostics: %v", stdout.String(), stderr.String(), err)
+			if err := json.Unmarshal([]byte(stdout), &response); err != nil || stderr != "" {
+				t.Fatalf("stdout=%q stderr=%q, want one JSON response and no diagnostics: %v", stdout, stderr, err)
 			}
 			if response.SchemaVersion != 1 || response.Operation == nil || *response.Operation != "search" ||
 				response.Results == nil || response.Executions == nil || response.Warnings == nil || response.Document != nil {
-				t.Fatalf("unexpected response: %s", stdout.String())
+				t.Fatalf("unexpected response: %s", stdout)
 			}
 			if tc.exit == 0 {
 				if response.Outcome != "success" || len(response.Results) != 1 || response.Results[0].URL != url || response.Error != nil {
-					t.Fatalf("unexpected success response: %s", stdout.String())
+					t.Fatalf("unexpected success response: %s", stdout)
 				}
 			} else if response.Outcome != "error" || len(response.Results) != 0 || response.Error == nil || response.Error.Code != "search_failed" {
-				t.Fatalf("unexpected failure response: %s", stdout.String())
+				t.Fatalf("unexpected failure response: %s", stdout)
 			}
 		})
 	}
+}
+
+func runCLIProcess(t *testing.T, wantExit int, args ...string) (string, string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	binary := os.Getenv(offlineBinaryEnv)
+	if binary == "" {
+		binary = os.Args[0]
+		args = append([]string{"-test.run=^TestOfflineCLIEntry$", "--"}, args...)
+	}
+	cmd := exec.CommandContext(ctx, binary, args...)
+	cmd.Env = append(os.Environ(), offlineCLIEnv+"=1")
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	err := cmd.Run()
+	if cmd.ProcessState == nil || cmd.ProcessState.ExitCode() != wantExit {
+		t.Fatalf("process = %v, err = %v, want exit %d; stdout=%q stderr=%q", cmd.ProcessState, err, wantExit, stdout.String(), stderr.String())
+	}
+	return stdout.String(), stderr.String()
 }
 
 func writeCLIConfig(t *testing.T, contents string) string {

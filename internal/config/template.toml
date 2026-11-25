@@ -1,0 +1,66 @@
+[search]
+# 调整搜索候选顺序。未列出的适用且有凭据的服务商按内置顺序补到末尾。
+# priority = ["tavily", "exa"]
+# 单次搜索的总时限。
+# timeout = "45s"
+# 搜索结果上限。
+# limit = 10
+# 多源融合的最大并发请求数。
+# max_concurrency = 3
+
+[fetch]
+# 调整正文候选顺序。未列出的适用且有凭据的服务商按内置顺序补到末尾。
+# priority = ["exa", "tavily"]
+# 单次正文获取的总时限。
+# timeout = "90s"
+# 正文输出的字符上限。
+# max_chars = 50000
+
+# 在对应服务商下填写 api_key，或设置对应环境变量。非空环境变量优先。
+# base_url 是搜索和正文共用的基础地址。适配器会拼接接口路径。
+# 可用 search_base_url 或 fetch_base_url 单独覆盖对应操作的基础地址。
+# search_timeout 和 fetch_timeout 分别限制该服务商的一次搜索和正文请求。
+
+[providers.tavily]
+# 环境变量 TAVILY_API_KEY
+# api_key = ""
+# base_url = "https://api.tavily.com"
+# search_timeout = "15s"
+# fetch_timeout = "45s"
+
+[providers.exa]
+# 环境变量 EXA_API_KEY
+# api_key = ""
+# base_url = "https://api.exa.ai"
+# search_timeout = "15s"
+# fetch_timeout = "45s"
+
+[providers.keenable]
+# 环境变量 KEENABLE_API_KEY
+# api_key = ""
+# base_url = "https://api.keenable.ai"
+# search_timeout = "15s"
+# fetch_timeout = "45s"
+
+[providers.firecrawl]
+# 环境变量 FIRECRAWL_API_KEY
+# api_key = ""
+# base_url = "https://api.firecrawl.dev"
+# search_timeout = "15s"
+# fetch_timeout = "45s"
+
+[providers.anysearch]
+# 环境变量 ANYSEARCH_API_KEY
+# api_key = ""
+# base_url = "https://api.anysearch.com"
+# search_timeout = "15s"
+# fetch_timeout = "45s"
+
+[providers.tinyfish]
+# 环境变量 TINYFISH_API_KEY
+# api_key = ""
+# 搜索和正文的官方基础地址使用不同主机。
+# search_base_url = "https://api.search.tinyfish.ai"
+# fetch_base_url = "https://api.fetch.tinyfish.ai"
+# search_timeout = "15s"
+# fetch_timeout = "45s"
