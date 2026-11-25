@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"net/http"
 	"os"
 	"os/signal"
 
@@ -11,33 +12,36 @@ import (
 )
 
 func main() {
-	app := cli.App{
-		NewTavily: func(key string) retrieval.SearchProvider {
-			return provider.NewTavily(key, nil, "")
+	os.Exit(run(newApp(nil), os.Args[1:]))
+}
+
+func newApp(client *http.Client) cli.App {
+	return cli.App{
+		NewTavily: func(key, baseURL string) retrieval.SearchProvider {
+			return provider.NewTavily(key, client, baseURL)
 		},
-		NewExa: func(key string) retrieval.SearchProvider {
-			return provider.NewExa(key, nil, "")
+		NewExa: func(key, baseURL string) retrieval.SearchProvider {
+			return provider.NewExa(key, client, baseURL)
 		},
-		NewKeenable: func(key string) retrieval.SearchProvider {
-			return provider.NewKeenable(key, nil, "")
+		NewKeenable: func(key, baseURL string) retrieval.SearchProvider {
+			return provider.NewKeenable(key, client, baseURL)
 		},
-		NewFirecrawl: func(key string) retrieval.SearchProvider {
-			return provider.NewFirecrawl(key, nil, "")
+		NewFirecrawl: func(key, baseURL string) retrieval.SearchProvider {
+			return provider.NewFirecrawl(key, client, baseURL)
 		},
-		NewTavilyFetch: func(key string) retrieval.FetchProvider {
-			return provider.NewTavilyFetch(key, nil, "")
+		NewTavilyFetch: func(key, baseURL string) retrieval.FetchProvider {
+			return provider.NewTavilyFetch(key, client, baseURL)
 		},
-		NewExaFetch: func(key string) retrieval.FetchProvider {
-			return provider.NewExaFetch(key, nil, "")
+		NewExaFetch: func(key, baseURL string) retrieval.FetchProvider {
+			return provider.NewExaFetch(key, client, baseURL)
 		},
-		NewKeenableFetch: func(key string) retrieval.FetchProvider {
-			return provider.NewKeenableFetch(key, nil, "")
+		NewKeenableFetch: func(key, baseURL string) retrieval.FetchProvider {
+			return provider.NewKeenableFetch(key, client, baseURL)
 		},
-		NewFirecrawlFetch: func(key string) retrieval.FetchProvider {
-			return provider.NewFirecrawlFetch(key, nil, "")
+		NewFirecrawlFetch: func(key, baseURL string) retrieval.FetchProvider {
+			return provider.NewFirecrawlFetch(key, client, baseURL)
 		},
 	}
-	os.Exit(run(app, os.Args[1:]))
 }
 
 func run(app cli.App, args []string) int {

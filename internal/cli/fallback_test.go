@@ -40,8 +40,8 @@ func exaApp(t *testing.T, key string, limit int, handle http.HandlerFunc) (cli.A
 		handle(w, r)
 	}))
 	t.Cleanup(server.Close)
-	return cli.App{NewExa: func(apiKey string) retrieval.SearchProvider {
-		return provider.NewExa(apiKey, server.Client(), server.URL+"/search")
+	return cli.App{NewExa: func(apiKey, _ string) retrieval.SearchProvider {
+		return provider.NewExa(apiKey, server.Client(), server.URL)
 	}}, &calls
 }
 

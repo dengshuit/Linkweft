@@ -13,14 +13,14 @@ import (
 )
 
 type App struct {
-	NewTavily         func(apiKey string) retrieval.SearchProvider
-	NewExa            func(apiKey string) retrieval.SearchProvider
-	NewKeenable       func(apiKey string) retrieval.SearchProvider
-	NewFirecrawl      func(apiKey string) retrieval.SearchProvider
-	NewTavilyFetch    func(apiKey string) retrieval.FetchProvider
-	NewExaFetch       func(apiKey string) retrieval.FetchProvider
-	NewKeenableFetch  func(apiKey string) retrieval.FetchProvider
-	NewFirecrawlFetch func(apiKey string) retrieval.FetchProvider
+	NewTavily         func(apiKey, baseURL string) retrieval.SearchProvider
+	NewExa            func(apiKey, baseURL string) retrieval.SearchProvider
+	NewKeenable       func(apiKey, baseURL string) retrieval.SearchProvider
+	NewFirecrawl      func(apiKey, baseURL string) retrieval.SearchProvider
+	NewTavilyFetch    func(apiKey, baseURL string) retrieval.FetchProvider
+	NewExaFetch       func(apiKey, baseURL string) retrieval.FetchProvider
+	NewKeenableFetch  func(apiKey, baseURL string) retrieval.FetchProvider
+	NewFirecrawlFetch func(apiKey, baseURL string) retrieval.FetchProvider
 }
 
 func (a App) Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {

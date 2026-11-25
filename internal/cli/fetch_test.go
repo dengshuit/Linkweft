@@ -59,11 +59,11 @@ func fetchApp(t *testing.T, tavily, exa http.HandlerFunc) (cli.App, *atomic.Int3
 	}))
 	t.Cleanup(server.Close)
 	return cli.App{
-		NewTavilyFetch: func(key string) retrieval.FetchProvider {
-			return provider.NewTavilyFetch(key, server.Client(), server.URL+"/extract")
+		NewTavilyFetch: func(key, _ string) retrieval.FetchProvider {
+			return provider.NewTavilyFetch(key, server.Client(), server.URL)
 		},
-		NewExaFetch: func(key string) retrieval.FetchProvider {
-			return provider.NewExaFetch(key, server.Client(), server.URL+"/contents")
+		NewExaFetch: func(key, _ string) retrieval.FetchProvider {
+			return provider.NewExaFetch(key, server.Client(), server.URL)
 		},
 	}, &tavilyCalls, &exaCalls
 }

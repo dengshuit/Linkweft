@@ -9,8 +9,12 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/pelletier/go-toml/v2"
+
+	"linkweft/internal/httpurl"
 )
 
 var searchOrder = []string{"tavily", "exa", "keenable", "firecrawl", "anysearch", "tinyfish"}
@@ -40,6 +44,8 @@ type Provider struct {
 	APIKey        string
 	SearchTimeout time.Duration
 	FetchTimeout  time.Duration
+	SearchBaseURL string
+	FetchBaseURL  string
 }
 
 type fileConfig struct {
@@ -58,6 +64,9 @@ type fileConfig struct {
 		APIKey        string  `toml:"api_key"`
 		SearchTimeout *string `toml:"search_timeout"`
 		FetchTimeout  *string `toml:"fetch_timeout"`
+		BaseURL       *string `toml:"base_url"`
+		SearchBaseURL *string `toml:"search_base_url"`
+		FetchBaseURL  *string `toml:"fetch_base_url"`
 	} `toml:"providers"`
 }
 
@@ -151,6 +160,20 @@ func resolve(file fileConfig) (Config, error) {
 	}
 	for _, name := range searchOrder {
 		entry := file.Providers[name]
+		for _, field := range []struct {
+			name  string
+			value *string
+		}{
+			{"base_url", entry.BaseURL},
+			{"search_base_url", entry.SearchBaseURL},
+			{"fetch_base_url", entry.FetchBaseURL},
+		} {
+			if field.value != nil && !validBaseURL(*field.value) {
+				return Config{}, errors.New("providers." + name + "." + field.name +
+					" must be an absolute HTTP(S) URL with a hostname and without user info, query, or fragment")
+			}
+		}
+		baseURL := baseURLOrDefault(entry.BaseURL, "")
 		timeout, ok := durationOrDefault(entry.SearchTimeout, 15*time.Second)
 		if !ok {
 			return Config{}, errors.New("provider search_timeout must be a positive duration")
@@ -164,7 +187,11 @@ func resolve(file fileConfig) (Config, error) {
 			key = entry.APIKey
 		}
 		key = strings.TrimSpace(key)
-		cfg.Providers[name] = Provider{APIKey: key, SearchTimeout: timeout, FetchTimeout: fetchTimeout}
+		cfg.Providers[name] = Provider{
+			APIKey: key, SearchTimeout: timeout, FetchTimeout: fetchTimeout,
+			SearchBaseURL: baseURLOrDefault(entry.SearchBaseURL, baseURL),
+			FetchBaseURL:  baseURLOrDefault(entry.FetchBaseURL, baseURL),
+		}
 		// A file key overridden by the environment still needs protection in output.
 		for _, value := range []string{key, strings.TrimSpace(entry.APIKey)} {
 			if value != "" && !slices.Contains(cfg.APIKeys, value) {
@@ -175,6 +202,22 @@ func resolve(file fileConfig) (Config, error) {
 	cfg.ConfiguredSearchProviders = configuredProviders(file.Search.Priority, searchOrder, cfg.Providers)
 	cfg.ConfiguredFetchProviders = configuredProviders(file.Fetch.Priority, fetchOrder, cfg.Providers)
 	return cfg, nil
+}
+
+func validBaseURL(raw string) bool {
+	// Reject the delimiters themselves, including empty queries and fragments.
+	if !utf8.ValidString(raw) || strings.ContainsFunc(raw, unicode.IsSpace) || strings.ContainsAny(raw, "?#") {
+		return false
+	}
+	address := httpurl.Parse(raw)
+	return address != nil && address.User == nil
+}
+
+func baseURLOrDefault(value *string, fallback string) string {
+	if value == nil {
+		return fallback
+	}
+	return *value
 }
 
 func configuredProviders(priority, defaults []string, providers map[string]Provider) []string {

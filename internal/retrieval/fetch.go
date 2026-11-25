@@ -7,6 +7,8 @@ import (
 	"time"
 	"unicode"
 	"unicode/utf8"
+
+	"linkweft/internal/httpurl"
 )
 
 func ValidFetchURL(address string) bool {
@@ -17,7 +19,7 @@ func parseFetchURL(raw string) *url.URL {
 	if !utf8.ValidString(raw) || strings.ContainsFunc(raw, unicode.IsSpace) {
 		return nil
 	}
-	address := parseHTTPURL(raw)
+	address := httpurl.Parse(raw)
 	if address == nil {
 		return nil
 	}

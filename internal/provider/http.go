@@ -8,11 +8,19 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 
 	"linkweft/internal/retrieval"
 )
 
 const maxResponseBytes = 16 << 20
+
+func operationURL(baseURL, defaultBaseURL, path string) string {
+	if baseURL == "" {
+		baseURL = defaultBaseURL
+	}
+	return strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(path, "/")
+}
 
 func fixedClient(client *http.Client) *http.Client {
 	if client == nil {

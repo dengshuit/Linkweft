@@ -9,19 +9,14 @@ import (
 	"linkweft/internal/retrieval"
 )
 
-const exaSearchURL = "https://api.exa.ai/search"
-const exaContentsURL = "https://api.exa.ai/contents"
-
 type exa struct {
 	key      string
 	endpoint string
 	client   *http.Client
 }
 
-func NewExa(apiKey string, client *http.Client, endpoint string) retrieval.SearchProvider {
-	if endpoint == "" {
-		endpoint = exaSearchURL
-	}
+func NewExa(apiKey string, client *http.Client, baseURL string) retrieval.SearchProvider {
+	endpoint := operationURL(baseURL, "https://api.exa.ai", "/search")
 	return retrieval.SearchProvider{
 		Searcher:   &exa{key: apiKey, client: fixedClient(client), endpoint: endpoint},
 		MaxResults: 100,
@@ -47,10 +42,8 @@ func (e *exa) Search(ctx context.Context, request retrieval.SearchRequest) ([]re
 	return response.candidates("")
 }
 
-func NewExaFetch(apiKey string, client *http.Client, endpoint string) retrieval.FetchProvider {
-	if endpoint == "" {
-		endpoint = exaContentsURL
-	}
+func NewExaFetch(apiKey string, client *http.Client, baseURL string) retrieval.FetchProvider {
+	endpoint := operationURL(baseURL, "https://api.exa.ai", "/contents")
 	return retrieval.FetchProvider{Fetcher: &exa{key: apiKey, client: fixedClient(client), endpoint: endpoint}}
 }
 

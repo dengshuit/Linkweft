@@ -7,6 +7,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"linkweft/internal/httpurl"
 )
 
 var (
@@ -165,7 +167,7 @@ func (call *searchCall) validate(candidates []Candidate, limit int, apiKeys []st
 	name := call.execution.Provider
 	dropped := 0
 	for _, candidate := range candidates {
-		address := parseHTTPURL(candidate.URL)
+		address := httpurl.Parse(candidate.URL)
 		if address == nil || candidate.Rank <= 0 ||
 			containsEncodedAPIKey(candidate.URL, address.RawQuery, apiKeys) {
 			dropped++

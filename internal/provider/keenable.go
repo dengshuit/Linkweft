@@ -9,19 +9,14 @@ import (
 	"linkweft/internal/retrieval"
 )
 
-const keenableSearchURL = "https://api.keenable.ai/v1/search"
-const keenableFetchURL = "https://api.keenable.ai/v1/fetch"
-
 type keenable struct {
 	key      string
 	endpoint string
 	client   *http.Client
 }
 
-func NewKeenable(apiKey string, client *http.Client, endpoint string) retrieval.SearchProvider {
-	if endpoint == "" {
-		endpoint = keenableSearchURL
-	}
+func NewKeenable(apiKey string, client *http.Client, baseURL string) retrieval.SearchProvider {
+	endpoint := operationURL(baseURL, "https://api.keenable.ai", "/v1/search")
 	return retrieval.SearchProvider{
 		Searcher:   &keenable{key: apiKey, client: fixedClient(client), endpoint: endpoint},
 		MaxResults: 50,
@@ -41,10 +36,8 @@ func (k *keenable) Search(ctx context.Context, request retrieval.SearchRequest) 
 	return response.candidates("snippet")
 }
 
-func NewKeenableFetch(apiKey string, client *http.Client, endpoint string) retrieval.FetchProvider {
-	if endpoint == "" {
-		endpoint = keenableFetchURL
-	}
+func NewKeenableFetch(apiKey string, client *http.Client, baseURL string) retrieval.FetchProvider {
+	endpoint := operationURL(baseURL, "https://api.keenable.ai", "/v1/fetch")
 	return retrieval.FetchProvider{Fetcher: &keenable{key: apiKey, client: fixedClient(client), endpoint: endpoint}}
 }
 

@@ -1,4 +1,4 @@
-package retrieval
+package httpurl
 
 import (
 	"net/netip"
@@ -7,7 +7,8 @@ import (
 	"strings"
 )
 
-func parseHTTPURL(raw string) *url.URL {
+// Parse returns nil unless raw is an absolute HTTP(S) URL with a valid host and port.
+func Parse(raw string) *url.URL {
 	address, err := url.Parse(raw)
 	if err != nil || (address.Scheme != "http" && address.Scheme != "https") {
 		return nil

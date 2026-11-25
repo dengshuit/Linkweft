@@ -9,19 +9,14 @@ import (
 	"linkweft/internal/retrieval"
 )
 
-const tavilySearchURL = "https://api.tavily.com/search"
-const tavilyExtractURL = "https://api.tavily.com/extract"
-
 type tavily struct {
 	key      string
 	endpoint string
 	client   *http.Client
 }
 
-func NewTavily(apiKey string, client *http.Client, endpoint string) retrieval.SearchProvider {
-	if endpoint == "" {
-		endpoint = tavilySearchURL
-	}
+func NewTavily(apiKey string, client *http.Client, baseURL string) retrieval.SearchProvider {
+	endpoint := operationURL(baseURL, "https://api.tavily.com", "/search")
 	return retrieval.SearchProvider{
 		Searcher:   &tavily{key: apiKey, client: fixedClient(client), endpoint: endpoint},
 		MaxResults: 20,
@@ -49,10 +44,8 @@ func (t *tavily) Search(ctx context.Context, request retrieval.SearchRequest) ([
 	return response.candidates("content")
 }
 
-func NewTavilyFetch(apiKey string, client *http.Client, endpoint string) retrieval.FetchProvider {
-	if endpoint == "" {
-		endpoint = tavilyExtractURL
-	}
+func NewTavilyFetch(apiKey string, client *http.Client, baseURL string) retrieval.FetchProvider {
+	endpoint := operationURL(baseURL, "https://api.tavily.com", "/extract")
 	return retrieval.FetchProvider{Fetcher: &tavily{key: apiKey, client: fixedClient(client), endpoint: endpoint}}
 }
 

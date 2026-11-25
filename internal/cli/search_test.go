@@ -69,8 +69,8 @@ func testApp(t *testing.T, key string, maxResults int, handle http.HandlerFunc) 
 		handle(w, r)
 	}))
 	t.Cleanup(server.Close)
-	app := cli.App{NewTavily: func(apiKey string) retrieval.SearchProvider {
-		return provider.NewTavily(apiKey, server.Client(), server.URL+"/search")
+	app := cli.App{NewTavily: func(apiKey, _ string) retrieval.SearchProvider {
+		return provider.NewTavily(apiKey, server.Client(), server.URL)
 	}}
 	return app, &calls
 }

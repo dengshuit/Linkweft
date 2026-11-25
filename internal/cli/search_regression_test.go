@@ -154,12 +154,12 @@ func TestSearchHTTPTimeoutPermitsFallback(t *testing.T) {
 		{"response body", stalledResponseBody},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			endpoint, client, exaAttempts := tc.setup(t)
+			baseURL, client, exaAttempts := tc.setup(t)
 			app, tavilyCalls := testApp(t, testKey, 10, func(w http.ResponseWriter, _ *http.Request) {
 				fmt.Fprint(w, `{"results":[{"url":"https://example.org/tavily"}]}`)
 			})
-			app.NewExa = func(key string) retrieval.SearchProvider {
-				return provider.NewExa(key, client, endpoint)
+			app.NewExa = func(key, _ string) retrieval.SearchProvider {
+				return provider.NewExa(key, client, baseURL)
 			}
 			stdout, _ := run(t, context.Background(), app, 0, "search", query, "--providers", "exa,tavily", "--timeout", "3s")
 			response := envelope(t, stdout, "search", "success")
@@ -198,7 +198,7 @@ func stalledTLSHandshake(t *testing.T) (string, *http.Client, *atomic.Int32) {
 		<-done
 		transport.CloseIdleConnections()
 	})
-	return "https://" + listener.Addr().String() + "/search", &http.Client{Transport: transport}, &attempts
+	return "https://" + listener.Addr().String(), &http.Client{Transport: transport}, &attempts
 }
 
 func stalledResponseBody(t *testing.T) (string, *http.Client, *atomic.Int32) {
@@ -217,7 +217,7 @@ func stalledResponseBody(t *testing.T) (string, *http.Client, *atomic.Int32) {
 	t.Cleanup(server.Close)
 	client := server.Client()
 	client.Timeout = 200 * time.Millisecond
-	return server.URL + "/search", client, &calls
+	return server.URL, client, &calls
 }
 
 func TestSearchTextReportsAllExecutions(t *testing.T) {

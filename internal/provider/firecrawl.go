@@ -9,19 +9,14 @@ import (
 	"linkweft/internal/retrieval"
 )
 
-const firecrawlSearchURL = "https://api.firecrawl.dev/v2/search"
-const firecrawlScrapeURL = "https://api.firecrawl.dev/v2/scrape"
-
 type firecrawl struct {
 	key      string
 	endpoint string
 	client   *http.Client
 }
 
-func NewFirecrawl(apiKey string, client *http.Client, endpoint string) retrieval.SearchProvider {
-	if endpoint == "" {
-		endpoint = firecrawlSearchURL
-	}
+func NewFirecrawl(apiKey string, client *http.Client, baseURL string) retrieval.SearchProvider {
+	endpoint := operationURL(baseURL, "https://api.firecrawl.dev", "/v2/search")
 	return retrieval.SearchProvider{
 		Searcher:   &firecrawl{key: apiKey, client: fixedClient(client), endpoint: endpoint},
 		MaxResults: 100,
@@ -68,10 +63,8 @@ func (f *firecrawl) Search(ctx context.Context, request retrieval.SearchRequest)
 	return results, nil
 }
 
-func NewFirecrawlFetch(apiKey string, client *http.Client, endpoint string) retrieval.FetchProvider {
-	if endpoint == "" {
-		endpoint = firecrawlScrapeURL
-	}
+func NewFirecrawlFetch(apiKey string, client *http.Client, baseURL string) retrieval.FetchProvider {
+	endpoint := operationURL(baseURL, "https://api.firecrawl.dev", "/v2/scrape")
 	return retrieval.FetchProvider{Fetcher: &firecrawl{key: apiKey, client: fixedClient(client), endpoint: endpoint}}
 }
 

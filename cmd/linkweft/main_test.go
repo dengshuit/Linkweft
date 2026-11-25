@@ -15,40 +15,26 @@ import (
 	"testing"
 	"time"
 
-	"linkweft/internal/cli"
-	"linkweft/internal/provider"
 	"linkweft/internal/retrieval"
 )
 
-const offlineEndpointEnv = "LINKWEFT_TEST_LOOPBACK"
+const offlineCLIEnv = "LINKWEFT_TEST_CLI"
 
 func TestOfflineCLIEntry(t *testing.T) {
-	endpoint := os.Getenv(offlineEndpointEnv)
-	if endpoint == "" {
+	if os.Getenv(offlineCLIEnv) == "" {
 		t.Skip("CLI subprocess entry")
 	}
 	separator := slices.Index(os.Args, "--")
 	if separator < 0 {
 		t.Fatal("missing CLI argument separator")
 	}
-	app := cli.App{
-		NewTavily: func(key string) retrieval.SearchProvider {
-			return provider.NewTavily(key, nil, endpoint+"/tavily/search")
-		},
-		NewExa: func(key string) retrieval.SearchProvider {
-			return provider.NewExa(key, nil, endpoint+"/exa/search")
-		},
-	}
-	os.Exit(run(app, os.Args[separator+1:]))
+	os.Args = append([]string{os.Args[0]}, os.Args[separator+1:]...)
+	main()
 }
 
 func TestCLIProcessStreams(t *testing.T) {
 	const url = "https://example.org/result"
-	config := filepath.Join(t.TempDir(), "config.toml")
-	if err := os.WriteFile(config, []byte("[providers.tavily]\napi_key = 'offline-fixture'\n"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("TAVILY_API_KEY", "")
+	isolateProviderKeys(t)
 	for _, tc := range []struct {
 		name, format, stdout, diagnostic string
 		status, exit                     int
@@ -67,6 +53,13 @@ func TestCLIProcessStreams(t *testing.T) {
 				io.WriteString(w, `{"results":[{"url":"`+url+`","title":"Title"}]}`)
 			}))
 			defer server.Close()
+			config := writeCLIConfig(t, "[providers.tavily]\napi_key = 'offline-fixture'\nbase_url = '"+server.URL+"/tavily/'\n"+`
+[providers.anysearch]
+base_url = "https://gateway.example/anysearch"
+[providers.tinyfish]
+search_base_url = "https://gateway.example/tinyfish-search"
+fetch_base_url = "https://gateway.example/tinyfish-fetch"
+`)
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			args := []string{"-test.run=^TestOfflineCLIEntry$", "--", "search", "fixture", "--providers", "tavily", "--config", config}
@@ -74,7 +67,7 @@ func TestCLIProcessStreams(t *testing.T) {
 				args = append(args, "--output", tc.format)
 			}
 			cmd := exec.CommandContext(ctx, os.Args[0], args...)
-			cmd.Env = append(os.Environ(), offlineEndpointEnv+"="+server.URL)
+			cmd.Env = append(os.Environ(), offlineCLIEnv+"=1")
 			var stdout, stderr bytes.Buffer
 			cmd.Stdout, cmd.Stderr = &stdout, &stderr
 			err := cmd.Run()
@@ -104,4 +97,13 @@ func TestCLIProcessStreams(t *testing.T) {
 			}
 		})
 	}
+}
+
+func writeCLIConfig(t *testing.T, contents string) string {
+	t.Helper()
+	config := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(config, []byte(contents), 0600); err != nil {
+		t.Fatal(err)
+	}
+	return config
 }

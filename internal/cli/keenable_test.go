@@ -49,11 +49,11 @@ func addKeenable(t *testing.T, app *cli.App, key, q string, limit int, search, f
 		w.WriteHeader(http.StatusNotFound)
 	}))
 	t.Cleanup(server.Close)
-	app.NewKeenable = func(key string) retrieval.SearchProvider {
-		return provider.NewKeenable(key, server.Client(), server.URL+"/v1/search")
+	app.NewKeenable = func(key, _ string) retrieval.SearchProvider {
+		return provider.NewKeenable(key, server.Client(), server.URL)
 	}
-	app.NewKeenableFetch = func(key string) retrieval.FetchProvider {
-		return provider.NewKeenableFetch(key, server.Client(), server.URL+"/v1/fetch")
+	app.NewKeenableFetch = func(key, _ string) retrieval.FetchProvider {
+		return provider.NewKeenableFetch(key, server.Client(), server.URL)
 	}
 	return &searches, &fetches
 }

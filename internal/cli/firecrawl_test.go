@@ -51,11 +51,11 @@ func addFirecrawl(t *testing.T, app *cli.App, key string, limit int, search, scr
 		w.WriteHeader(http.StatusNotFound)
 	}))
 	t.Cleanup(server.Close)
-	app.NewFirecrawl = func(key string) retrieval.SearchProvider {
-		return provider.NewFirecrawl(key, server.Client(), server.URL+"/v2/search")
+	app.NewFirecrawl = func(key, _ string) retrieval.SearchProvider {
+		return provider.NewFirecrawl(key, server.Client(), server.URL)
 	}
-	app.NewFirecrawlFetch = func(key string) retrieval.FetchProvider {
-		return provider.NewFirecrawlFetch(key, server.Client(), server.URL+"/v2/scrape")
+	app.NewFirecrawlFetch = func(key, _ string) retrieval.FetchProvider {
+		return provider.NewFirecrawlFetch(key, server.Client(), server.URL)
 	}
 	return &searches, &scrapes
 }
