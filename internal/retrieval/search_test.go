@@ -73,14 +73,14 @@ func TestSearchSkipsUnsupportedCapability(t *testing.T) {
 	}
 	request := retrieval.SearchRequest{Limit: 10}
 	t.Run("AC33 automatic skips unsupported and stops after success", func(t *testing.T) {
-		response, exit := retrieval.Search(context.Background(), request, retrieval.SearchOptions{Timeout: time.Second}, []string{"keenable", "exa", "tavily"}, false, registry, nil)
+		response, exit := retrieval.Search(context.Background(), request, retrieval.SearchOptions{Timeout: time.Second}, []string{"firecrawl", "exa", "tavily"}, false, registry, nil)
 		if exit != 0 || response.Outcome != "success" || response.Error != nil || len(response.Results) != 1 || response.Results[0].URL != resultURL {
 			t.Fatalf("exit = %d, response = %+v", exit, response)
 		}
 		if !slices.Equal(calls, []string{"exa"}) || len(response.Executions) != 3 {
 			t.Fatalf("calls = %v, executions = %+v", calls, response.Executions)
 		}
-		assertUncalled(t, response.Executions[0], "keenable", "skipped", "unsupported_capability")
+		assertUncalled(t, response.Executions[0], "firecrawl", "skipped", "unsupported_capability")
 		if execution := response.Executions[1]; execution.Provider != "exa" || execution.Status != "success" ||
 			execution.DurationMS == nil || execution.Reason != nil || execution.Error != nil {
 			t.Errorf("unexpected successful execution: %+v", execution)
@@ -89,7 +89,7 @@ func TestSearchSkipsUnsupportedCapability(t *testing.T) {
 	})
 	t.Run("AC06 explicit unsupported prevents any request", func(t *testing.T) {
 		calls = nil
-		response, exit := retrieval.Search(context.Background(), request, retrieval.SearchOptions{Timeout: time.Second}, []string{"exa", "keenable"}, true, registry, nil)
+		response, exit := retrieval.Search(context.Background(), request, retrieval.SearchOptions{Timeout: time.Second}, []string{"exa", "firecrawl"}, true, registry, nil)
 		if exit != 2 || response.Outcome != "error" || response.Error == nil || response.Error.Code != "unsupported_capability" ||
 			len(response.Results) != 0 || len(response.Executions) != 0 || len(calls) != 0 {
 			t.Fatalf("exit = %d, response = %+v, calls = %v", exit, response, calls)

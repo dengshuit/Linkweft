@@ -165,8 +165,8 @@ func (call *searchCall) validate(candidates []Candidate, limit int, apiKeys []st
 	name := call.execution.Provider
 	dropped := 0
 	for _, candidate := range candidates {
-		address, err := url.Parse(candidate.URL)
-		if err != nil || (address.Scheme != "http" && address.Scheme != "https") || address.Hostname() == "" || candidate.Rank <= 0 ||
+		address := parseHTTPURL(candidate.URL)
+		if address == nil || candidate.Rank <= 0 ||
 			containsEncodedAPIKey(candidate.URL, address.RawQuery, apiKeys) {
 			dropped++
 			continue

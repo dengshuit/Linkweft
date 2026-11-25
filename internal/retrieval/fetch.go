@@ -2,9 +2,7 @@ package retrieval
 
 import (
 	"context"
-	"net/netip"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -19,26 +17,9 @@ func parseFetchURL(raw string) *url.URL {
 	if !utf8.ValidString(raw) || strings.ContainsFunc(raw, unicode.IsSpace) {
 		return nil
 	}
-	address, err := url.Parse(raw)
-	if err != nil || (address.Scheme != "http" && address.Scheme != "https") {
+	address := parseHTTPURL(raw)
+	if address == nil {
 		return nil
-	}
-	hostname := address.Hostname()
-	if hostname == "" {
-		return nil
-	}
-	if strings.HasPrefix(address.Host, "[") {
-		ip, err := netip.ParseAddr(hostname)
-		if err != nil || !ip.Is6() {
-			return nil
-		}
-	} else if strings.ContainsAny(hostname, "[]:") {
-		return nil
-	}
-	if port := address.Port(); port != "" {
-		if _, err := strconv.ParseUint(port, 10, 16); err != nil {
-			return nil
-		}
 	}
 	if _, err := url.PathUnescape(address.RawQuery); err != nil {
 		return nil

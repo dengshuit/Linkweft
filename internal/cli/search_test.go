@@ -203,7 +203,7 @@ func TestSearchPreflight(t *testing.T) {
 		{"duplicate provider", []string{"search", query, "--providers", "tavily, tavily"}, "search", "invalid_argument"},
 		{"empty provider", []string{"search", query, "--providers", "tavily, "}, "search", "invalid_argument"},
 		{"unknown provider", []string{"search", query, "--providers", "unknown"}, "search", "invalid_argument"},
-		{"unsupported explicit provider", []string{"search", query, "--providers", "tavily, keenable"}, "search", "unsupported_capability"},
+		{"unsupported explicit provider", []string{"search", query, "--providers", "tavily, firecrawl"}, "search", "unsupported_capability"},
 		{"invalid strategy", searchArgs("--strategy", "single"), "search", "invalid_argument"},
 		{"invalid output", searchArgs("--output", "xml"), "search", "invalid_argument"},
 		{"unknown option", searchArgs("--unknown"), "search", "invalid_argument"},
@@ -385,12 +385,12 @@ func TestSearchDoesNotFetchResultURL(t *testing.T) {
 func TestSearchConfigurationPrecedence(t *testing.T) {
 	isolateConfig(t)
 	path := testConfig(t, `[search]
-priority = ["keenable"]
+priority = ["firecrawl"]
 limit = 3
 timeout = "4s"
 
-[providers.keenable]
-api_key = "test-only-keenable-key"
+[providers.firecrawl]
+api_key = "test-only-firecrawl-key"
 
 [providers.tavily]
 api_key = "`+fileKey+`"
@@ -403,7 +403,7 @@ search_timeout = "2s"
 		stdout, _ := run(t, context.Background(), app, 0, "search", query, "--config", path)
 		response := envelope(t, stdout, "search", "empty")
 		items := response["executions"].([]any)
-		wantSkip := map[string]any{"provider": "keenable", "status": "skipped", "duration_ms": nil, "reason": "unsupported_capability", "error": nil}
+		wantSkip := map[string]any{"provider": "firecrawl", "status": "skipped", "duration_ms": nil, "reason": "unsupported_capability", "error": nil}
 		if len(items) != 2 || !reflect.DeepEqual(items[0], wantSkip) {
 			t.Fatalf("unexpected executions: %#v", items)
 		}

@@ -18,11 +18,17 @@ func main() {
 		NewExa: func(key string) retrieval.SearchProvider {
 			return provider.NewExa(key, nil, "")
 		},
+		NewKeenable: func(key string) retrieval.SearchProvider {
+			return provider.NewKeenable(key, nil, "")
+		},
 		NewTavilyFetch: func(key string) retrieval.FetchProvider {
 			return provider.NewTavilyFetch(key, nil, "")
 		},
 		NewExaFetch: func(key string) retrieval.FetchProvider {
 			return provider.NewExaFetch(key, nil, "")
+		},
+		NewKeenableFetch: func(key string) retrieval.FetchProvider {
+			return provider.NewKeenableFetch(key, nil, "")
 		},
 	}
 	os.Exit(run(app, os.Args[1:]))

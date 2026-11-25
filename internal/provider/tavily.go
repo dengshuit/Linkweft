@@ -46,7 +46,7 @@ func (t *tavily) Search(ctx context.Context, request retrieval.SearchRequest) ([
 	if err := postJSON(ctx, t.client, t.endpoint, "Authorization", "Bearer "+t.key, payload, &response); err != nil {
 		return nil, err
 	}
-	return response.candidates(true)
+	return response.candidates("content")
 }
 
 func NewTavilyFetch(apiKey string, client *http.Client, endpoint string) retrieval.FetchProvider {

@@ -224,8 +224,8 @@ func TestSearchTextReportsAllExecutions(t *testing.T) {
 	isolateConfig(t)
 	t.Setenv("TAVILY_API_KEY", testKey)
 	t.Setenv("EXA_API_KEY", exaKey)
-	t.Setenv("KEENABLE_API_KEY", "test-only-keenable-key")
-	path := testConfig(t, "[search]\npriority = ['keenable']")
+	t.Setenv("FIRECRAWL_API_KEY", "test-only-firecrawl-key")
+	path := testConfig(t, "[search]\npriority = ['firecrawl']")
 	app, tavilyCalls := testApp(t, testKey, 10, func(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprint(w, `{"results":[{"url":"https://example.org/tavily"}]}`)
 	})
@@ -235,7 +235,7 @@ func TestSearchTextReportsAllExecutions(t *testing.T) {
 	if stdout != "https://example.org/tavily\n\n" {
 		t.Errorf("unexpected text results: %q", stdout)
 	}
-	want := "keenable: skipped: unsupported_capability\ntavily: success\nexa: not_started: fallback_satisfied\n"
+	want := "firecrawl: skipped: unsupported_capability\ntavily: success\nexa: not_started: fallback_satisfied\n"
 	if stderr != want {
 		t.Errorf("execution summaries = %q, want %q", stderr, want)
 	}

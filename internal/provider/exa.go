@@ -44,7 +44,7 @@ func (e *exa) Search(ctx context.Context, request retrieval.SearchRequest) ([]re
 	if err := postJSON(ctx, e.client, e.endpoint, "x-api-key", e.key, payload, &response); err != nil {
 		return nil, err
 	}
-	return response.candidates(false)
+	return response.candidates("")
 }
 
 func NewExaFetch(apiKey string, client *http.Client, endpoint string) retrieval.FetchProvider {

@@ -26,6 +26,13 @@ func fixedClient(client *http.Client) *http.Client {
 }
 
 func postJSON(ctx context.Context, client *http.Client, endpoint, authHeader, authValue string, payload, output any) *retrieval.Error {
+	return postJSONWithErrorMapping(ctx, client, endpoint, authHeader, authValue, payload, output, nil)
+}
+
+func postJSONWithErrorMapping(
+	ctx context.Context, client *http.Client, endpoint, authHeader, authValue string, payload, output any,
+	mapError func(int, io.Reader) *retrieval.Error,
+) *retrieval.Error {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return &retrieval.Error{Code: "upstream_error", Message: "cannot encode provider request"}
@@ -41,16 +48,26 @@ func postJSON(ctx context.Context, client *http.Client, endpoint, authHeader, au
 		return requestError(err, "provider request failed")
 	}
 	defer resp.Body.Close()
-	switch resp.StatusCode {
-	case http.StatusUnauthorized, http.StatusForbidden:
-		return &retrieval.Error{Code: "auth_failed", Message: "provider rejected the API credentials"}
-	case http.StatusTooManyRequests:
-		return &retrieval.Error{Code: "rate_limited", Message: "provider rate limit reached"}
-	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return &retrieval.Error{Code: "upstream_error", Message: "provider returned an unsuccessful HTTP status"}
+		if mapError != nil {
+			if issue := mapError(resp.StatusCode, resp.Body); issue != nil {
+				return issue
+			}
+		}
+		switch resp.StatusCode {
+		case http.StatusUnauthorized, http.StatusForbidden:
+			return &retrieval.Error{Code: "auth_failed", Message: "provider rejected the API credentials"}
+		case http.StatusTooManyRequests:
+			return &retrieval.Error{Code: "rate_limited", Message: "provider rate limit reached"}
+		default:
+			return &retrieval.Error{Code: "upstream_error", Message: "provider returned an unsuccessful HTTP status"}
+		}
 	}
-	data, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes+1))
+	return readJSON(resp.Body, output)
+}
+
+func readJSON(body io.Reader, output any) *retrieval.Error {
+	data, err := io.ReadAll(io.LimitReader(body, maxResponseBytes+1))
 	if err != nil {
 		return requestError(err, "cannot read provider response")
 	}
