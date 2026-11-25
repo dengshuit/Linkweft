@@ -13,6 +13,7 @@ import (
 )
 
 type App struct {
+	Version           string
 	NewTavily         func(apiKey, baseURL string) retrieval.SearchProvider
 	NewExa            func(apiKey, baseURL string) retrieval.SearchProvider
 	NewKeenable       func(apiKey, baseURL string) retrieval.SearchProvider
@@ -31,6 +32,7 @@ func (a App) Run(ctx context.Context, args []string, stdout, stderr io.Writer) i
 	root := &cobra.Command{
 		Use:           "linkweft",
 		Short:         "Search the web and fetch page content",
+		Version:       a.Version,
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		CompletionOptions: cobra.CompletionOptions{
@@ -40,6 +42,7 @@ func (a App) Run(ctx context.Context, args []string, stdout, stderr io.Writer) i
 	root.SetArgs(append([]string{}, args...))
 	root.SetOut(stdout)
 	root.SetErr(stderr)
+	root.SetVersionTemplate("{{.Version}}\n")
 
 	var response retrieval.Response
 	var exitCode int
@@ -93,6 +96,7 @@ func (a App) Run(ctx context.Context, args []string, stdout, stderr io.Writer) i
 
 	// Resolve the public command tree before Cobra can install its hidden completion commands.
 	root.InitDefaultHelpCmd()
+	root.InitDefaultVersionFlag()
 	executed, _, err := root.Find(args)
 	if err == nil {
 		executed, err = root.ExecuteContextC(ctx)

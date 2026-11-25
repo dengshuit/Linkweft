@@ -11,12 +11,15 @@ import (
 	"linkweft/internal/retrieval"
 )
 
+var version = "dev"
+
 func main() {
 	os.Exit(run(newApp(nil), os.Args[1:]))
 }
 
 func newApp(client *http.Client) cli.App {
 	return cli.App{
+		Version: version,
 		NewTavily: func(key, baseURL string) retrieval.SearchProvider {
 			return provider.NewTavily(key, client, baseURL)
 		},
