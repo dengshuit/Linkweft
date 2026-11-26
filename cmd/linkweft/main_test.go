@@ -96,7 +96,10 @@ func runCLIProcess(t *testing.T, wantExit int, args ...string) (string, string) 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	binary := os.Getenv(offlineBinaryEnv)
-	if binary == "" {
+	if launcher := os.Getenv("LINKWEFT_TEST_NODE_LAUNCHER"); launcher != "" {
+		binary = "node"
+		args = append([]string{launcher}, args...)
+	} else if binary == "" {
 		binary = os.Args[0]
 		args = append([]string{"-test.run=^TestOfflineCLIEntry$", "--"}, args...)
 	}

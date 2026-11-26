@@ -2,7 +2,10 @@ const { execFileSync, execSync } = require('node:child_process');
 const { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } = require('node:fs');
 const { basename, join, resolve } = require('node:path');
 
-const scope = '@linkweft-local';
+const scope = process.env.LINKWEFT_NPM_SCOPE || '@linkweft-local';
+const repository = process.env.GITHUB_REPOSITORY && process.env.GITHUB_SERVER_URL
+  ? { type: 'git', url: `git+${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}.git` }
+  : undefined;
 const platforms = {
   'linux/amd64': ['linux', 'x64'],
   'linux/arm64': ['linux', 'arm64'],
@@ -68,6 +71,7 @@ function buildAndPack(version, target, output) {
     const platformArchive = pack(platform, {
       name: platformName(os, cpu),
       version,
+      repository,
       os: [os],
       cpu: [cpu],
       files: [executable],
@@ -78,6 +82,7 @@ function buildAndPack(version, target, output) {
     const mainArchive = pack(main, {
       name: `${scope}/linkweft`,
       version,
+      repository,
       bin: { linkweft: 'linkweft.cjs' },
       engines: { node: '>=24' },
       files: ['linkweft.cjs'],
@@ -102,7 +107,10 @@ function buildAndPack(version, target, output) {
 }
 
 const [version, target, output, extra] = process.argv.slice(2);
-if (!validVersion(version) || !Object.hasOwn(platforms, target) || !output || extra !== undefined) {
+if (!/^@[a-z0-9][a-z0-9-]{0,191}$/.test(scope)) {
+  console.error('LINKWEFT_NPM_SCOPE must be an npm scope such as @linkweft-local.');
+  process.exitCode = 2;
+} else if (!validVersion(version) || !Object.hasOwn(platforms, target) || !output || extra !== undefined) {
   console.error('Usage: node packaging/pack.cjs VERSION GOOS/GOARCH OUTPUT_DIR');
   console.error('VERSION must be an npm version such as 0.1.0-local.1, without build metadata.');
   console.error(`Targets: ${Object.keys(platforms).join(', ')}`);

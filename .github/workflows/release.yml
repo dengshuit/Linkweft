@@ -1,0 +1,156 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Candidate npm version
+        required: true
+        type: string
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+
+permissions:
+  contents: read
+
+env:
+  LINKWEFT_NPM_SCOPE: ${{ vars.LINKWEFT_NPM_SCOPE }}
+
+jobs:
+  build:
+    if: ${{ github.event_name == 'workflow_dispatch' || !github.event.deleted }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      commit: ${{ steps.version.outputs.commit }}
+      artifact: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Resolve version and commit
+        id: version
+        shell: bash
+        env:
+          CANDIDATE_VERSION: ${{ inputs.version }}
+        run: |
+          version="$CANDIDATE_VERSION"
+          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
+            component='(0|[1-9][0-9]*)'
+            if [[ "$GITHUB_REF_TYPE" != tag || ! "$GITHUB_REF_NAME" =~ ^v$component\.$component\.$component$ ]]; then
+              echo "Invalid release tag: $GITHUB_REF_NAME" >&2
+              exit 1
+            fi
+            version="${GITHUB_REF_NAME#v}"
+          fi
+          if [[ ! "$version" =~ ^[0-9A-Za-z.-]+$ ]]; then
+            echo "Invalid version" >&2
+            exit 1
+          fi
+          {
+            echo "version=$version"
+            echo "commit=$(git rev-parse HEAD)"
+          } >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Test, pack and check all six targets
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          COMMIT: ${{ steps.version.outputs.commit }}
+        run: |
+          go test ./...
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
+            node packaging/pack.cjs "$VERSION" "$target" "$RUNNER_TEMP/batches"
+          done
+          python3 packaging/release.py "$VERSION" "$COMMIT" "$RUNNER_TEMP/release" assemble "$RUNNER_TEMP/batches"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        id: upload
+        with:
+          name: linkweft-${{ steps.version.outputs.version }}-${{ steps.version.outputs.commit }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/release/
+          if-no-files-found: error
+
+  accept:
+    needs: build
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: linux-amd64, runner: ubuntu-24.04, arch: x64 }
+          - { target: linux-arm64, runner: ubuntu-24.04-arm, arch: arm64 }
+          - { target: darwin-amd64, runner: macos-15-intel, arch: x64 }
+          - { target: darwin-arm64, runner: macos-15, arch: arm64 }
+          - { target: windows-amd64, runner: windows-2025, arch: x64 }
+          - { target: windows-arm64, runner: windows-11-arm, arch: arm64 }
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.build.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+          architecture: ${{ matrix.arch }}
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          architecture: ${{ matrix.arch }}
+          package-manager-cache: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+          architecture: ${{ matrix.arch }}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          artifact-ids: ${{ needs.build.outputs.artifact }}
+          path: ${{ runner.temp }}/release
+      - name: Install and exercise the accepted binaries
+        shell: bash
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+          COMMIT: ${{ needs.build.outputs.commit }}
+          TARGET: ${{ matrix.target }}
+        run: python packaging/release.py "$VERSION" "$COMMIT" "$RUNNER_TEMP/release" verify "$TARGET"
+
+  publish:
+    needs: [build, accept]
+    if: ${{ github.event_name == 'push' && github.ref_type == 'tag' && !github.event.deleted && vars.LINKWEFT_NPM_SCOPE != '' && vars.LINKWEFT_NPM_SCOPE != '@linkweft-local' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      id-token: write
+    concurrency:
+      group: linkweft-npm-release
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.build.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          artifact-ids: ${{ needs.build.outputs.artifact }}
+          path: ${{ runner.temp }}/release
+      - name: Publish npm packages, then the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.build.outputs.version }}
+          COMMIT: ${{ needs.build.outputs.commit }}
+        run: python3 packaging/release.py "$VERSION" "$COMMIT" "$RUNNER_TEMP/release" publish
