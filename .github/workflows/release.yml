@@ -149,6 +149,7 @@ jobs:
           path: ${{ runner.temp }}/release
       - name: Publish npm packages, then the GitHub Release
         env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           VERSION: ${{ needs.build.outputs.version }}
