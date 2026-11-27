@@ -29,15 +29,19 @@ linkweft fetch -- "$url"
 
 Use the default JSON output. Keep stdout and stderr separate, and read stdout even when the exit code is nonzero. The JSON envelope has `schema_version: 1`. If stdout contains no JSON, use the exit code and stderr to diagnose the failure.
 
+The top-level `outcome` describes the whole command. `executions` records individual provider attempts.
+
 - `success` supplies structurally valid search hits in `results` or nonempty page content in `document.content.text`. Inspect the retrieved content for relevance and usable evidence.
 - `empty` is a completed search with zero hits. Refine the query when another search would help.
 - `partial` supplies usable results from a merged search. Check `executions` if incomplete provider coverage matters to the answer. Both `empty` and `partial` exit with code `0`.
 - `error` provides `error.code` and may include provider details in `executions[].error`. For `no_provider_available` or `missing_credentials`, tell the user which setup is needed. A provider credential can be configured through the environment or the TOML file created by `linkweft init`.
 - `cancelled` ends the current retrieval attempt.
 
+For Fetch, judge the overall result by `outcome` and the returned `document`. Linkweft tries the configured providers in order until one returns an accepted document. Earlier provider errors in `executions` do not invalidate a later success. Use `document.provider` to identify the provider that supplied the document. Inspect `executions` when the fetch fails, the content is unusable, or provider-level diagnostics are requested. Do not repeat a successful, usable fetch solely because an earlier provider failed.
+
 Use available titles, URLs, and snippets to select pages. A `null` snippet is allowed. When the title or snippet is missing, use the URL and fetch candidate pages to check their contents. Exa requests snippets by default, and `providers.exa.search_snippets = false` disables them in the TOML configuration.
 
-A fetch may return a login page, browser verification page, or error page as nonempty content. Read the body before using it as evidence. If access is blocked, report that limitation and use another permitted source or provider when useful.
+A fetch may return a login page, browser verification page, or error page as nonempty content, even with `outcome: success`. Confirm that `document.content.text` contains the requested page content before citing it. Report blocked access only when the final response or returned body supports that conclusion. If no usable content is available, use another permitted source or provider when useful.
 
 Check `document.content.freshness` when retrieval freshness matters, and preserve an `unknown` freshness assessment.
 
