@@ -258,7 +258,7 @@ func TestFirecrawlFetchFailures(t *testing.T) {
 	isolateConfig(t)
 	configureFourProviders(t)
 	message := untrustedError + firecrawlKey + " " + fileKey
-	config := testConfig(t, "[providers.firecrawl]\napi_key = '"+fileKey+"'")
+	config := testConfig(t, "[fetch]\npriority = ['firecrawl', 'tavily', 'exa']\n[providers.firecrawl]\napi_key = '"+fileKey+"'")
 	targetError := func(status int, detail string) string {
 		return fmt.Sprintf(`{"success":true,"data":{"markdown":%q,"metadata":{"statusCode":%d,"error":%q}}}`,
 			firecrawlFailureContent, status, detail)

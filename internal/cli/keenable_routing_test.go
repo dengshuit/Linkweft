@@ -25,11 +25,11 @@ func TestKeenableThreeProviderFallback(t *testing.T) {
 		executions   []executionWant
 		calls        [3]int32
 	}{
-		{"built-in order", "tavily", nil, []executionWant{
-			{provider: "tavily", status: "success"},
-			{"exa", "not_started", "fallback_satisfied", ""},
+		{"built-in order", "exa", nil, []executionWant{
+			{provider: "exa", status: "success"},
 			{"keenable", "not_started", "fallback_satisfied", ""},
-		}, [3]int32{1, 0, 0}},
+			{"tavily", "not_started", "fallback_satisfied", ""},
+		}, [3]int32{0, 1, 0}},
 		{"configured order and empty fallback", "exa", []string{"--config", config}, []executionWant{
 			{provider: "keenable", status: "empty"},
 			{provider: "exa", status: "success"},
@@ -120,18 +120,18 @@ func TestKeenableFetchRouteIsIndependent(t *testing.T) {
 	stdout, _ = run(t, context.Background(), app, 0, "fetch", found, "--config", config)
 	obj = fetchResponse(t, stdout, "success", true)
 	assertExecutions(t, obj, executionWant{provider: "keenable", status: "success"},
-		executionWant{"tavily", "not_started", "fallback_satisfied", ""},
-		executionWant{"exa", "not_started", "fallback_satisfied", ""})
+		executionWant{"exa", "not_started", "fallback_satisfied", ""},
+		executionWant{"tavily", "not_started", "fallback_satisfied", ""})
 	assertCalls(t, fetches, 1)
 
 	stdout, _ = run(t, context.Background(), app, 0, fetchArgs()...)
 	obj = fetchResponse(t, stdout, "success", true)
-	assertExecutions(t, obj, executionWant{provider: "tavily", status: "success"},
+	assertExecutions(t, obj, executionWant{provider: "keenable", status: "success"},
 		executionWant{"exa", "not_started", "fallback_satisfied", ""},
-		executionWant{"keenable", "not_started", "fallback_satisfied", ""})
-	assertCalls(t, tavilyFetch, 1)
+		executionWant{"tavily", "not_started", "fallback_satisfied", ""})
+	assertCalls(t, tavilyFetch, 0)
 	assertCalls(t, exaFetch, 0)
-	assertCalls(t, fetches, 1)
+	assertCalls(t, fetches, 2)
 	assertCalls(t, tavilySearch, 1)
 	assertCalls(t, exaSearch, 0)
 	assertCalls(t, searches, 0)
@@ -151,17 +151,17 @@ func TestFirecrawlFourProviderMerge(t *testing.T) {
 		`{"success":true,"data":{"web":[{"url":%q,"position":8,"title":"Firecrawl title","description":"Firecrawl snippet"}]}}`, canonical)), nil)
 	stdout, _ := run(t, context.Background(), app, 0, "search", query, "--strategy", "merge")
 	obj := envelope(t, stdout, "search", "success")
-	assertExecutions(t, obj, executionWant{provider: "tavily", status: "success"},
-		executionWant{provider: "exa", status: "success"}, executionWant{provider: "keenable", status: "success"},
-		executionWant{provider: "firecrawl", status: "success"})
-	assertResultURLs(t, obj, tavilyURL, exaURL, keenableURL)
+	assertExecutions(t, obj, executionWant{provider: "exa", status: "success"},
+		executionWant{provider: "keenable", status: "success"}, executionWant{provider: "firecrawl", status: "success"},
+		executionWant{provider: "tavily", status: "success"})
+	assertResultURLs(t, obj, canonical, exaURL, keenableURL)
 	want := map[string]any{
-		"url": tavilyURL, "title": "Shared", "snippet": "Keenable snippet", "content": nil,
+		"url": canonical, "title": "Shared", "snippet": "Keenable snippet", "content": nil,
 		"sources": []any{
-			map[string]any{"provider": "tavily", "url": tavilyURL, "rank": float64(1)},
 			map[string]any{"provider": "exa", "url": canonical, "rank": float64(2)},
 			map[string]any{"provider": "keenable", "url": canonical, "rank": float64(3)},
 			map[string]any{"provider": "firecrawl", "url": canonical, "rank": float64(8)},
+			map[string]any{"provider": "tavily", "url": tavilyURL, "rank": float64(1)},
 		},
 	}
 	if results := obj["results"].([]any); len(results) == 0 || !reflect.DeepEqual(results[0], want) {

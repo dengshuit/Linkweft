@@ -85,7 +85,8 @@ func TestCLIConfigInitAC40(t *testing.T) {
 		t.Error("template must contain only the two operation tables and six provider tables as active lines")
 	}
 	for _, comment := range []string{
-		`# priority = ["tavily", "exa"]`, `# priority = ["exa", "tavily"]`,
+		`# priority = ["exa", "keenable", "tinyfish", "anysearch", "firecrawl", "tavily"]`,
+		`# priority = ["tinyfish", "keenable", "exa", "tavily", "anysearch", "firecrawl"]`,
 		`# timeout = "45s"`, `# limit = 10`, `# max_concurrency = 3`, `# timeout = "90s"`, `# max_chars = 50000`,
 		"非空环境变量优先", "可用 search_base_url 或 fetch_base_url",
 	} {
@@ -150,7 +151,7 @@ func TestCLIPersistentConfig(t *testing.T) {
 		requests = append(requests, r.URL.Path)
 		mu.Unlock()
 		header, key := "Authorization", "Bearer "+gatewayKey
-		if r.URL.Path == "/default/exa/search" {
+		if r.URL.Path == "/default/exa/search" || r.URL.Path == "/default/exa/contents" {
 			header, key = "X-API-Key", gatewayKey
 		}
 		if r.Method != http.MethodPost || r.Header.Get(header) != key {
@@ -159,8 +160,10 @@ func TestCLIPersistentConfig(t *testing.T) {
 			return
 		}
 		switch r.URL.Path {
-		case "/default/exa/search", "/default/tavily/extract":
+		case "/default/exa/search", "/default/exa/contents", "/default/tavily/extract":
 			w.WriteHeader(http.StatusTooManyRequests)
+		case "/default/firecrawl/v2/search":
+			fmt.Fprint(w, `{"success":true,"data":{"web":[]}}`)
 		case "/default/tavily/search", "/explicit/tavily/search":
 			fmt.Fprintf(w, `{"results":[{"url":%q}]}`, gatewayArticle)
 		case "/default/firecrawl/v2/scrape":
@@ -223,17 +226,17 @@ func TestCLIPersistentConfig(t *testing.T) {
 	searchArgs, fetchArgs := []string{"search", "fixture"}, []string{"fetch", gatewayArticle}
 	defaultSearch := func(t *testing.T) {
 		t.Helper()
-		assertSearch(t, assertRun(t, searchArgs, []string{"/default/exa/search", "/default/tavily/search"},
+		assertSearch(t, assertRun(t, searchArgs, []string{"/default/exa/search", "/default/firecrawl/v2/search", "/default/tavily/search"},
 			gatewayExecution{"exa", "error", "", "rate_limited"},
-			gatewayExecution{"tavily", "success", "", ""},
-			gatewayExecution{"firecrawl", "not_started", "fallback_satisfied", ""}))
+			gatewayExecution{"firecrawl", "empty", "", ""},
+			gatewayExecution{"tavily", "success", "", ""}))
 	}
 	defaultFetch := func(t *testing.T) {
 		t.Helper()
-		assertFetch(t, assertRun(t, fetchArgs, []string{"/default/tavily/extract", "/default/firecrawl/v2/scrape"},
+		assertFetch(t, assertRun(t, fetchArgs, []string{"/default/tavily/extract", "/default/exa/contents", "/default/firecrawl/v2/scrape"},
 			gatewayExecution{"tavily", "error", "", "rate_limited"},
-			gatewayExecution{"firecrawl", "success", "", ""},
-			gatewayExecution{"exa", "not_started", "fallback_satisfied", ""}), "firecrawl", "default body")
+			gatewayExecution{"exa", "error", "", "rate_limited"},
+			gatewayExecution{"firecrawl", "success", "", ""}), "firecrawl", "default body")
 	}
 	t.Run("AC41", func(t *testing.T) {
 		defaultSearch(t)

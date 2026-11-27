@@ -147,9 +147,7 @@ func TestSearchFallback(t *testing.T) {
 	tavilySuccess := executionWant{provider: "tavily", status: "success"}
 	exaSuccess := executionWant{provider: "exa", status: "success"}
 	tavilyPending := executionWant{provider: "tavily", status: "not_started", reason: "fallback_satisfied"}
-	exaPending := executionWant{provider: "exa", status: "not_started", reason: "fallback_satisfied"}
-	tavilyFailure := executionWant{provider: "tavily", status: "error", code: "upstream_error"}
-	tavilyInvalid := executionWant{provider: "tavily", status: "error", code: "invalid_response"}
+	exaInvalid := executionWant{provider: "exa", status: "error", code: "invalid_response"}
 	exaFailure := executionWant{provider: "exa", status: "error", code: "rate_limited"}
 	for _, tc := range []struct {
 		name, priority, providers, tavilyBody, exaBody, outcome string
@@ -158,14 +156,15 @@ func TestSearchFallback(t *testing.T) {
 		calls, urls                                             []string
 	}{
 		{
-			name: "AC01 default order and empty fallback", tavilyBody: empty, exaBody: exaHits, outcome: "success",
-			executions: []executionWant{tavilyEmpty, exaSuccess}, calls: []string{"tavily", "exa"},
-			urls: []string{"https://example.org/z", "https://example.org/a"},
+			name: "AC01 default order and empty fallback", tavilyBody: tavilyHit, exaBody: empty, outcome: "success",
+			executions: []executionWant{exaEmpty, tavilySuccess}, calls: []string{"exa", "tavily"},
+			urls: []string{"https://example.org/tavily"},
 		},
 		{
-			name: "AC02 stop after one result", tavilyBody: tavilyHit, exaBody: exaHits, outcome: "success",
-			executions: []executionWant{tavilySuccess, exaPending}, calls: []string{"tavily"},
-			urls: []string{"https://example.org/tavily"},
+			name: "AC02 stop after one result", tavilyBody: tavilyHit,
+			exaBody: `{"results":[{"url":"https://example.org/exa"}]}`, outcome: "success",
+			executions: []executionWant{exaSuccess, tavilyPending}, calls: []string{"exa"},
+			urls: []string{"https://example.org/exa"},
 		},
 		{
 			name: "AC05 explicit order overrides priority", priority: "tavily", providers: "exa,tavily",
@@ -174,32 +173,32 @@ func TestSearchFallback(t *testing.T) {
 			urls: []string{"https://example.org/z", "https://example.org/a"},
 		},
 		{
-			name: "AC05 configured priority and built-in completion", priority: "exa",
-			tavilyBody: tavilyHit, exaBody: empty, outcome: "success",
-			executions: []executionWant{exaEmpty, tavilySuccess}, calls: []string{"exa", "tavily"},
-			urls: []string{"https://example.org/tavily"},
+			name: "AC05 configured priority and built-in completion", priority: "tavily",
+			tavilyBody: empty, exaBody: exaHits, outcome: "success",
+			executions: []executionWant{tavilyEmpty, exaSuccess}, calls: []string{"tavily", "exa"},
+			urls: []string{"https://example.org/z", "https://example.org/a"},
 		},
 		{
 			name: "AC04 AC26 single Exa failure", providers: "exa", tavilyBody: tavilyHit,
 			outcome: "error", exit: 1, executions: []executionWant{exaFailure}, calls: []string{"exa"},
 		},
 		{
-			name: "AC07 AC26 recover from upstream failure", exaBody: exaHits, outcome: "success",
-			executions: []executionWant{tavilyFailure, exaSuccess}, calls: []string{"tavily", "exa"},
-			urls: []string{"https://example.org/z", "https://example.org/a"},
+			name: "AC07 AC26 recover from upstream failure", tavilyBody: tavilyHit, outcome: "success",
+			executions: []executionWant{exaFailure, tavilySuccess}, calls: []string{"exa", "tavily"},
+			urls: []string{"https://example.org/tavily"},
 		},
 		{
-			name: "AC12 recover from all invalid URLs", tavilyBody: `{"results":[{"url":"/invalid"}]}`, exaBody: exaHits, outcome: "success",
-			executions: []executionWant{tavilyInvalid, exaSuccess}, calls: []string{"tavily", "exa"},
-			urls: []string{"https://example.org/z", "https://example.org/a"},
+			name: "AC12 recover from all invalid URLs", exaBody: `{"results":[{"url":"/invalid"}]}`, tavilyBody: tavilyHit, outcome: "success",
+			executions: []executionWant{exaInvalid, tavilySuccess}, calls: []string{"exa", "tavily"},
+			urls: []string{"https://example.org/tavily"},
 		},
 		{
 			name: "AC09 all empty", tavilyBody: empty, exaBody: empty, outcome: "empty",
-			executions: []executionWant{tavilyEmpty, exaEmpty}, calls: []string{"tavily", "exa"},
+			executions: []executionWant{exaEmpty, tavilyEmpty}, calls: []string{"exa", "tavily"},
 		},
 		{
 			name: "AC10 empty and failure", tavilyBody: empty, outcome: "error", exit: 1,
-			executions: []executionWant{tavilyEmpty, exaFailure}, calls: []string{"tavily", "exa"},
+			executions: []executionWant{exaFailure, tavilyEmpty}, calls: []string{"exa", "tavily"},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

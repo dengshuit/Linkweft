@@ -24,8 +24,8 @@ func TestSearchMergeCandidateOrder(t *testing.T) {
 		name, priority, selected string
 		exaFirst, skip           bool
 	}{
-		{name: "automatic built-in order", skip: true},
-		{name: "automatic configured order", priority: "exa", exaFirst: true, skip: true},
+		{name: "automatic built-in order", exaFirst: true, skip: true},
+		{name: "automatic configured order", priority: "tavily", skip: true},
 		{name: "explicit order overrides configuration", priority: "tavily", selected: "exa,tavily", exaFirst: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -58,6 +58,9 @@ func TestSearchMergeCandidateOrder(t *testing.T) {
 			}
 			if tc.skip {
 				executions = append(executions, executionWant{provider: "tinyfish", status: "skipped", reason: "unsupported_capability"})
+				if tc.exaFirst {
+					executions[1], executions[2] = executions[2], executions[1]
+				}
 			}
 			assertExecutions(t, response, executions...)
 			want := []any{map[string]any{"url": address, "title": "Exa title", "snippet": "Tavily snippet", "content": nil, "sources": sources}}
@@ -92,7 +95,7 @@ func TestSearchMergeCLIConcurrency(t *testing.T) {
 				fmt.Fprint(w, `{"results":[{"url":"https://example.org/exa"}]}`)
 			})
 			app.NewExa = exa.NewExa
-			args := []string{"search", query, "--strategy", "merge", "--timeout", "3s"}
+			args := []string{"search", query, "--strategy", "merge", "--timeout", "3s", "--providers", "tavily,exa"}
 			if one {
 				args = append(args, "--config", testConfig(t, "[search]\nmax_concurrency = 1"))
 			}
@@ -203,7 +206,7 @@ func TestSearchMergeCLIOutcomes(t *testing.T) {
 			case "command_timeout":
 				command = "350ms"
 			}
-			path := testConfig(t, fmt.Sprintf("[search]\nmax_concurrency = 1\ntimeout = %q\n[providers.exa]\nsearch_timeout = %q", command, platform))
+			path := testConfig(t, fmt.Sprintf("[search]\npriority = ['tavily']\nmax_concurrency = 1\ntimeout = %q\n[providers.exa]\nsearch_timeout = %q", command, platform))
 			stdout, _ := run(t, ctx, app, tc.exit, "search", query, "--strategy", "merge", "--config", path)
 			response := envelope(t, stdout, "search", tc.outcome)
 			tavilyStatus := "empty"

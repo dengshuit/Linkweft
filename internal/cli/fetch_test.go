@@ -318,7 +318,7 @@ fetch_timeout = "200ms"
 [providers.exa]
 fetch_timeout = "2s"`)
 		app, tavilyCalls, exaCalls := fetchApp(t, stall, stall)
-		stdout, _ := run(t, context.Background(), app, 1, fetchArgs("--config", config, "--timeout", "400ms")...)
+		stdout, _ := run(t, context.Background(), app, 1, fetchArgs("--config", config, "--timeout", "400ms", "--providers", "tavily,exa")...)
 		obj := fetchResponse(t, stdout, "error", false)
 		objectCode(t, obj["error"], "fetch_failed")
 		assertExecutions(t, obj,
@@ -336,7 +336,7 @@ fetch_timeout = "2s"`)
 	t.Run("config command budget prevents later request", func(t *testing.T) {
 		config := testConfig(t, "[fetch]\ntimeout = '150ms'")
 		app, tavilyCalls, exaCalls := fetchApp(t, stall, bodyResponse(exaBody))
-		stdout, _ := run(t, context.Background(), app, 1, fetchArgs("--config", config)...)
+		stdout, _ := run(t, context.Background(), app, 1, fetchArgs("--config", config, "--providers", "tavily,exa")...)
 		obj := fetchResponse(t, stdout, "error", false)
 		objectCode(t, obj["error"], "fetch_failed")
 		assertExecutions(t, obj,
@@ -352,7 +352,7 @@ fetch_timeout = "2s"`)
 			cancel(retrieval.ErrUserCancelled)
 			stall(w, r)
 		}, bodyResponse(exaBody))
-		stdout, _ := run(t, ctx, app, 130, fetchArgs()...)
+		stdout, _ := run(t, ctx, app, 130, fetchArgs("--providers", "tavily,exa")...)
 		obj := fetchResponse(t, stdout, "cancelled", false)
 		objectCode(t, obj["error"], "user_cancelled")
 		assertExecutions(t, obj,
@@ -367,7 +367,7 @@ func TestFetchProtectsCredentials(t *testing.T) {
 	isolateConfig(t)
 	t.Setenv("TAVILY_API_KEY", testKey)
 	t.Setenv("EXA_API_KEY", exaKey)
-	config := testConfig(t, "[providers.tavily]\napi_key = '"+fileKey+"'")
+	config := testConfig(t, "[fetch]\npriority = ['tavily']\n[providers.tavily]\napi_key = '"+fileKey+"'")
 	encoded := strings.ReplaceAll(fileKey, "-", "%2D")
 	t.Run("body with embedded credential cannot satisfy fallback", func(t *testing.T) {
 		unsafeBody := fmt.Sprintf(`{"results":[{"raw_content":%q}]}`, "Document https://example.org/?key="+encoded)
@@ -426,17 +426,17 @@ func TestFetchAutomaticBuiltInOrder(t *testing.T) {
 	stdout, _ := run(t, context.Background(), app, 0, fetchArgs()...)
 	obj := fetchResponse(t, stdout, "success", true)
 	assertExecutions(t, obj,
-		executionWant{provider: "firecrawl", status: "success"},
-		executionWant{"tavily", "not_started", "fallback_satisfied", ""},
+		executionWant{"tinyfish", "skipped", "unsupported_capability", ""},
+		executionWant{provider: "keenable", status: "success"},
 		executionWant{"exa", "not_started", "fallback_satisfied", ""},
-		executionWant{"keenable", "not_started", "fallback_satisfied", ""},
-		executionWant{"tinyfish", "skipped", "unsupported_capability", ""})
+		executionWant{"tavily", "not_started", "fallback_satisfied", ""},
+		executionWant{"firecrawl", "not_started", "fallback_satisfied", ""})
 	assertCalls(t, tavilyCalls, 0)
 	assertCalls(t, exaCalls, 0)
 	assertCalls(t, keenableSearch, 0)
-	assertCalls(t, keenableFetch, 0)
+	assertCalls(t, keenableFetch, 1)
 	assertCalls(t, firecrawlSearch, 0)
-	assertCalls(t, firecrawlFetch, 1)
+	assertCalls(t, firecrawlFetch, 0)
 }
 
 func TestSearchUsesSearchEndpointsWithFetchEnabled(t *testing.T) {

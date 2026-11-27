@@ -19,7 +19,7 @@ func TestSearchProtectsOtherProviderCredentials(t *testing.T) {
 	isolateConfig(t)
 	t.Setenv("TAVILY_API_KEY", testKey)
 	t.Setenv("EXA_API_KEY", exaKey)
-	path := testConfig(t, "[providers.tavily]\napi_key = '"+fileKey+"'")
+	path := testConfig(t, "[search]\npriority = ['tavily']\n[providers.tavily]\napi_key = '"+fileKey+"'")
 	encodedKey := strings.ReplaceAll(testKey, "-", "%2D")
 	for _, format := range []string{"json", "text"} {
 		t.Run(format, func(t *testing.T) {
@@ -77,7 +77,7 @@ func TestSearchProtectsEncodedCredentialsWithMalformedQuery(t *testing.T) {
 				fmt.Fprintf(w, `{"results":[{"url":%q}]}`, safeURL)
 			})
 			app.NewExa = exa.NewExa
-			stdout, stderr := run(t, context.Background(), app, 0, "search", query, "--strategy", strategy)
+			stdout, stderr := run(t, context.Background(), app, 0, "search", query, "--strategy", strategy, "--providers", "tavily,exa")
 			response := envelope(t, stdout, "search", "success")
 			results := response["results"].([]any)
 			for _, value := range results {
@@ -225,7 +225,7 @@ func TestSearchTextReportsAllExecutions(t *testing.T) {
 	t.Setenv("TAVILY_API_KEY", testKey)
 	t.Setenv("EXA_API_KEY", exaKey)
 	t.Setenv("TINYFISH_API_KEY", "test-only-tinyfish-key")
-	path := testConfig(t, "[search]\npriority = ['tinyfish']")
+	path := testConfig(t, "[search]\npriority = ['tinyfish', 'tavily']")
 	app, tavilyCalls := testApp(t, testKey, 10, func(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprint(w, `{"results":[{"url":"https://example.org/tavily"}]}`)
 	})

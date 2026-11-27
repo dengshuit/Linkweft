@@ -17,8 +17,8 @@ import (
 	"linkweft/internal/httpurl"
 )
 
-var searchOrder = []string{"tavily", "exa", "keenable", "firecrawl", "anysearch", "tinyfish"}
-var fetchOrder = []string{"firecrawl", "tavily", "exa", "keenable", "tinyfish", "anysearch"}
+var searchOrder = []string{"exa", "keenable", "tinyfish", "anysearch", "firecrawl", "tavily"}
+var fetchOrder = []string{"tinyfish", "keenable", "exa", "tavily", "anysearch", "firecrawl"}
 
 type Config struct {
 	Search                    Search

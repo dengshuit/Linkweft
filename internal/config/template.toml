@@ -1,6 +1,6 @@
 [search]
 # 调整搜索候选顺序。未列出的适用且有凭据的服务商按内置顺序补到末尾。
-# priority = ["tavily", "exa"]
+# priority = ["exa", "keenable", "tinyfish", "anysearch", "firecrawl", "tavily"]
 # 单次搜索的总时限。
 # timeout = "45s"
 # 搜索结果上限。
@@ -10,7 +10,7 @@
 
 [fetch]
 # 调整正文候选顺序。未列出的适用且有凭据的服务商按内置顺序补到末尾。
-# priority = ["exa", "tavily"]
+# priority = ["tinyfish", "keenable", "exa", "tavily", "anysearch", "firecrawl"]
 # 单次正文获取的总时限。
 # timeout = "90s"
 # 正文输出的字符上限。

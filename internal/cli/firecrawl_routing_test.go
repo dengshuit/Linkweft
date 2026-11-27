@@ -55,21 +55,22 @@ func TestFirecrawlFourProviderSearchFallback(t *testing.T) {
 		want              []executionWant
 		calls             [4]int32
 	}{
-		{"built-in order stops after Tavily", hit, emptyExa, nil, []executionWant{
-			{provider: "tavily", status: "success"},
-			{"exa", "not_started", "fallback_satisfied", ""},
+		{"built-in order stops after Exa", hit, hit, nil, []executionWant{
+			{provider: "exa", status: "success"},
 			{"keenable", "not_started", "fallback_satisfied", ""},
 			{"firecrawl", "not_started", "fallback_satisfied", ""},
-		}, [4]int32{1, 0, 0, 0}},
+			{"tavily", "not_started", "fallback_satisfied", ""},
+		}, [4]int32{0, 1, 0, 0}},
 		{"built-in order falls through to Firecrawl", emptyExa, emptyExa, nil, []executionWant{
-			{provider: "tavily", status: "empty"}, {provider: "exa", status: "empty"},
+			{provider: "exa", status: "empty"},
 			{provider: "keenable", status: "empty"}, {provider: "firecrawl", status: "success"},
-		}, [4]int32{1, 1, 1, 1}},
+			{"tavily", "not_started", "fallback_satisfied", ""},
+		}, [4]int32{0, 1, 1, 1}},
 		{"configured order moves Firecrawl first", hit, hit, []string{"--config", config}, []executionWant{
 			{provider: "firecrawl", status: "success"},
-			{"tavily", "not_started", "fallback_satisfied", ""},
 			{"exa", "not_started", "fallback_satisfied", ""},
 			{"keenable", "not_started", "fallback_satisfied", ""},
+			{"tavily", "not_started", "fallback_satisfied", ""},
 		}, [4]int32{0, 0, 0, 1}},
 		{"explicit subset wins over configuration", hit, hit, []string{"--config", config, "--providers", "exa,firecrawl"}, []executionWant{
 			{provider: "exa", status: "success"}, {"firecrawl", "not_started", "fallback_satisfied", ""},
@@ -100,9 +101,9 @@ func TestFirecrawlFetchRouteIsIndependent(t *testing.T) {
 	obj := envelope(t, stdout, "search", "success")
 	assertResultURLs(t, obj, fetchURL)
 	assertExecutions(t, obj, executionWant{provider: "exa", status: "success"},
-		executionWant{"tavily", "not_started", "fallback_satisfied", ""},
 		executionWant{"keenable", "not_started", "fallback_satisfied", ""},
-		executionWant{"firecrawl", "not_started", "fallback_satisfied", ""})
+		executionWant{"firecrawl", "not_started", "fallback_satisfied", ""},
+		executionWant{"tavily", "not_started", "fallback_satisfied", ""})
 	found := obj["results"].([]any)[0].(map[string]any)["url"].(string)
 	fetches.assert(t, [4]int32{})
 
@@ -119,9 +120,9 @@ func TestFirecrawlFetchRouteIsIndependent(t *testing.T) {
 	stdout, _ = run(t, context.Background(), app, 0, fetchArgs("--config", config)...)
 	obj = fetchResponse(t, stdout, "success", true)
 	assertExecutions(t, obj, executionWant{provider: "tavily", status: "success"},
-		executionWant{"firecrawl", "not_started", "fallback_satisfied", ""},
+		executionWant{"keenable", "not_started", "fallback_satisfied", ""},
 		executionWant{"exa", "not_started", "fallback_satisfied", ""},
-		executionWant{"keenable", "not_started", "fallback_satisfied", ""})
+		executionWant{"firecrawl", "not_started", "fallback_satisfied", ""})
 	fetches.assert(t, [4]int32{1, 0, 0, 1})
 	searches.assert(t, [4]int32{0, 1, 0, 0})
 }
@@ -189,6 +190,7 @@ func TestFirecrawlFetchSharesCommandBudget(t *testing.T) {
 		},
 	})
 	config := testConfig(t, `[fetch]
+priority = ['firecrawl', 'tavily', 'exa']
 timeout = '500ms'
 [providers.firecrawl]
 fetch_timeout = '150ms'
