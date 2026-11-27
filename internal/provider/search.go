@@ -2,6 +2,7 @@ package provider
 
 import (
 	"encoding/json"
+	"slices"
 	"strings"
 
 	"linkweft/internal/retrieval"
@@ -18,10 +19,11 @@ func (r searchResponse) candidates(snippetField string) ([]retrieval.Candidate, 
 	results := make([]retrieval.Candidate, len(r.Results))
 	for i, item := range r.Results {
 		var result struct {
-			URL     string          `json:"url"`
-			Title   json.RawMessage `json:"title"`
-			Content json.RawMessage `json:"content"`
-			Snippet json.RawMessage `json:"snippet"`
+			URL        string          `json:"url"`
+			Title      json.RawMessage `json:"title"`
+			Content    json.RawMessage `json:"content"`
+			Snippet    json.RawMessage `json:"snippet"`
+			Highlights json.RawMessage `json:"highlights"`
 		}
 		if err := json.Unmarshal(item, &result); err != nil {
 			continue
@@ -32,6 +34,15 @@ func (r searchResponse) candidates(snippetField string) ([]retrieval.Candidate, 
 			candidate.Snippet = optionalText(result.Content)
 		case "snippet":
 			candidate.Snippet = optionalText(result.Snippet)
+		case "highlights":
+			var highlights []string
+			if json.Unmarshal(result.Highlights, &highlights) == nil {
+				highlights = slices.DeleteFunc(highlights, func(text string) bool { return strings.TrimSpace(text) == "" })
+				if len(highlights) > 0 {
+					text := strings.Join(highlights, "\n")
+					candidate.Snippet = &text
+				}
+			}
 		case "snippet+content":
 			candidate.Snippet = optionalText(result.Snippet)
 			if content := optionalText(result.Content); content != nil {

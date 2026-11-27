@@ -86,6 +86,7 @@ func fetchOne(ctx context.Context, address string, maxChars int, provider FetchP
 	start := time.Now()
 	requestCtx, cancel := context.WithDeadlineCause(ctx, start.Add(provider.Timeout), errProviderTimeout)
 	defer cancel()
+	execution.EffectiveTimeoutMS = effectiveTimeoutMS(requestCtx, start)
 	document, issue := provider.Fetch(requestCtx, address)
 	if issue == nil && document != nil && requestCtx.Err() == nil {
 		document, issue = prepareDocument(document, address, execution.Provider, maxChars, apiKeys)

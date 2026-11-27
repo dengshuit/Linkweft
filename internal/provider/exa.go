@@ -35,11 +35,15 @@ type exaRequest struct {
 
 func (e *exa) Search(ctx context.Context, request retrieval.SearchRequest) ([]retrieval.Candidate, *retrieval.Error) {
 	payload := exaRequest{Query: request.Query, NumResults: request.Limit, Type: "auto"}
+	payload.Contents.Highlights = !request.DisableSnippets
 	var response searchResponse
 	if err := postJSON(ctx, e.client, e.endpoint, "x-api-key", e.key, payload, &response); err != nil {
 		return nil, err
 	}
-	return response.candidates("")
+	if request.DisableSnippets {
+		return response.candidates("")
+	}
+	return response.candidates("highlights")
 }
 
 func NewExaFetch(apiKey string, client *http.Client, baseURL string) retrieval.FetchProvider {
@@ -130,6 +134,11 @@ func exaContentFreshness(address string, statuses []exaContentStatus) (string, *
 				failure = &retrieval.Error{Code: "content_blocked", Message: "provider reported that access to the requested URL was blocked"}
 			} else if failure == nil {
 				failure = &retrieval.Error{Code: "upstream_error", Message: "provider reported content retrieval failure for the requested URL"}
+			} else {
+				continue
+			}
+			if entry.Error != nil {
+				failure = withTargetHTTPStatus(failure, entry.Error.HTTPStatusCode)
 			}
 		default:
 			return "", &retrieval.Error{Code: "invalid_response", Message: "provider returned an invalid URL status"}

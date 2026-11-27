@@ -103,6 +103,7 @@ collect:
 			interruptedExecution(execution, cause)
 			duration := end.Sub(starts[i].start).Milliseconds()
 			execution.DurationMS = &duration
+			execution.EffectiveTimeoutMS = effectiveTimeoutMS(starts[i].ctx, starts[i].start)
 			_, call.warnings = upstreamLimit(request.Limit, execution.Provider, registry[execution.Provider].MaxResults)
 		}
 		failed = failed || execution.Error != nil || execution.Status == "not_started"

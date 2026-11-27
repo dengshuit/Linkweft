@@ -13,8 +13,9 @@ type Searcher interface {
 }
 
 type SearchRequest struct {
-	Query string
-	Limit int // Zero when the upstream does not accept a limit.
+	Query           string
+	Limit           int // Zero when the upstream does not accept a limit.
+	DisableSnippets bool
 }
 
 type SearchOptions struct {
@@ -33,8 +34,9 @@ type Candidate struct {
 
 type SearchProvider struct {
 	Searcher
-	Timeout    time.Duration
-	MaxResults int // Zero when the upstream does not accept a limit.
+	Timeout         time.Duration
+	MaxResults      int // Zero when the upstream does not accept a limit.
+	DisableSnippets bool
 }
 
 type Fetcher interface {
@@ -95,11 +97,12 @@ type Source struct {
 }
 
 type Execution struct {
-	Provider   string  `json:"provider"`
-	Status     string  `json:"status"`
-	DurationMS *int64  `json:"duration_ms"`
-	Reason     *string `json:"reason"`
-	Error      *Error  `json:"error"`
+	Provider           string  `json:"provider"`
+	Status             string  `json:"status"`
+	DurationMS         *int64  `json:"duration_ms"`
+	EffectiveTimeoutMS *int64  `json:"effective_timeout_ms,omitempty"`
+	Reason             *string `json:"reason"`
+	Error              *Error  `json:"error"`
 }
 
 type Warning struct {
@@ -109,8 +112,11 @@ type Warning struct {
 }
 
 type Error struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
+	Code             string `json:"code"`
+	Message          string `json:"message"`
+	HTTPStatus       *int   `json:"http_status,omitempty"`
+	TargetHTTPStatus *int   `json:"target_http_status,omitempty"`
+	RetryAfterMS     *int64 `json:"retry_after_ms,omitempty"`
 }
 
 func (e *Error) Error() string { return e.Message }

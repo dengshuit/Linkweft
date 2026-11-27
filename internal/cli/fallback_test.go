@@ -35,7 +35,7 @@ func exaApp(t *testing.T, key string, limit int, handle http.HandlerFunc) (cli.A
 			t.Error("expected JSON request")
 		}
 		assertJSON(t, r.Body, fmt.Sprintf(`{
-			"query":%q,"numResults":%d,"type":"auto","contents":{"text":false,"highlights":false}
+			"query":%q,"numResults":%d,"type":"auto","contents":{"text":false,"highlights":true}
 		}`, query, limit))
 		handle(w, r)
 	}))
@@ -111,15 +111,19 @@ func assertExecutions(t *testing.T, response map[string]any, want ...executionWa
 		if expected.reason != "" {
 			reason = expected.reason
 		}
-		if !ok || len(entry) != 5 || entry["provider"] != expected.provider || entry["status"] != expected.status || entry["reason"] != reason {
+		if !ok || entry["provider"] != expected.provider || entry["status"] != expected.status || entry["reason"] != reason {
 			t.Fatalf("execution %d = %#v, want %#v", i, items[i], expected)
 		}
 		if expected.status == "skipped" || expected.status == "not_started" {
-			if entry["duration_ms"] != nil {
-				t.Errorf("expected null duration for an uncalled provider: %#v", entry)
+			if len(entry) != 5 || entry["duration_ms"] != nil || entry["effective_timeout_ms"] != nil {
+				t.Errorf("unexpected timing for an uncalled provider: %#v", entry)
 			}
-		} else if duration, ok := entry["duration_ms"].(float64); !ok || duration < 0 {
-			t.Errorf("expected a nonnegative duration: %#v", entry)
+		} else {
+			duration, hasDuration := entry["duration_ms"].(float64)
+			budget, hasBudget := entry["effective_timeout_ms"].(float64)
+			if len(entry) != 6 || !hasDuration || duration < 0 || !hasBudget || budget < 0 {
+				t.Errorf("expected nonnegative timing for a called provider: %#v", entry)
+			}
 		}
 		if expected.code != "" {
 			objectCode(t, entry["error"], expected.code)

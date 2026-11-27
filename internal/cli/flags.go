@@ -19,9 +19,9 @@ type commonFlags struct {
 
 func (f *commonFlags) bind(cmd *cobra.Command) {
 	flags := cmd.Flags()
-	flags.StringVar(&f.providers, "providers", "", "comma-separated providers")
+	flags.StringVar(&f.providers, "providers", "", "comma-separated provider names (tavily, exa, keenable, firecrawl, anysearch, tinyfish)")
 	flags.StringVar(&f.config, "config", "", "path to the TOML configuration file")
-	flags.StringVar(&f.timeout, "timeout", "", "command timeout (for example 45s)")
+	flags.StringVar(&f.timeout, "timeout", "", "total retrieval budget (for example 45s), also bounded by provider search_timeout or fetch_timeout")
 	flags.StringVar(&f.output, "output", "json", "output format: json or text")
 }
 

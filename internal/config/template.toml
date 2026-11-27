@@ -31,6 +31,8 @@
 [providers.exa]
 # 环境变量 EXA_API_KEY
 # api_key = ""
+# 默认请求摘要片段。设置 false 可关闭 Exa 搜索摘要。
+# search_snippets = true
 # base_url = "https://api.exa.ai"
 # search_timeout = "15s"
 # fetch_timeout = "45s"

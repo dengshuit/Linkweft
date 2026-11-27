@@ -1,6 +1,18 @@
 package retrieval
 
-import "context"
+import (
+	"context"
+	"time"
+)
+
+func effectiveTimeoutMS(ctx context.Context, start time.Time) *int64 {
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return nil
+	}
+	budget := max(int64(0), deadline.Sub(start).Milliseconds())
+	return &budget
+}
 
 func route(response *Response, names []string, explicit bool, capability func(string) (supported, available bool)) *Error {
 	operation := *response.Operation

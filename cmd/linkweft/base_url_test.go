@@ -37,7 +37,7 @@ func TestProviderBaseURLPrecedence(t *testing.T) {
 			gatewayOperation{"/search", `{"query":"fixture","max_results":10,"search_depth":"basic","topic":"general","auto_parameters":false,"include_answer":false,"include_raw_content":false,"include_images":false,"include_image_descriptions":false}`, `{"results":[{"url":"https://example.org/article"}]}`},
 			gatewayOperation{"/extract", `{"urls":["https://example.org/article"],"format":"markdown","extract_depth":"basic"}`, `{"results":[{"raw_content":"fixture body"}]}`}},
 		{"exa", "https://api.exa.ai", "https://api.exa.ai", "", gatewayKey,
-			gatewayOperation{"/search", `{"query":"fixture","numResults":10,"type":"auto","contents":{"text":false,"highlights":false}}`, `{"results":[{"url":"https://example.org/article"}]}`},
+			gatewayOperation{"/search", `{"query":"fixture","numResults":10,"type":"auto","contents":{"text":false,"highlights":true}}`, `{"results":[{"url":"https://example.org/article"}]}`},
 			gatewayOperation{"/contents", `{"urls":["https://example.org/article"],"text":true}`, `{"results":[{"text":"fixture body"}]}`}},
 		{"keenable", "https://api.keenable.ai", "https://api.keenable.ai", "", gatewayKey,
 			gatewayOperation{"/v1/search", `{"query":"fixture","max_results":10,"disable_cards":true}`, `{"results":[{"url":"https://example.org/article"}]}`},

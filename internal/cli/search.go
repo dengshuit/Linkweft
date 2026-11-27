@@ -17,7 +17,7 @@ type searchFlags struct {
 func (f *searchFlags) bind(cmd *cobra.Command) {
 	f.commonFlags.bind(cmd)
 	flags := cmd.Flags()
-	flags.StringVar(&f.strategy, "strategy", "fallback", "search strategy: fallback or merge")
+	flags.StringVar(&f.strategy, "strategy", "fallback", "search strategy (fallback or merge), fallback stops at the first provider with a valid result URL")
 	flags.StringVar(&f.limit, "limit", "", "maximum number of results")
 }
 
@@ -63,6 +63,7 @@ func (a App) search(cmd *cobra.Command, query string, opts searchFlags) (retriev
 		if settings := cfg.Providers[name]; settings.APIKey != "" {
 			entry = factory(settings.APIKey, settings.SearchBaseURL)
 			entry.Timeout = settings.SearchTimeout
+			entry.DisableSnippets = !settings.SearchSnippets
 		}
 		registry[name] = entry
 	}

@@ -33,6 +33,7 @@ func (a App) Run(ctx context.Context, args []string, stdout, stderr io.Writer) i
 	root := &cobra.Command{
 		Use:           "linkweft",
 		Short:         "Search the web and fetch page content",
+		Long:          "Search the web and fetch page content with tavily, exa, keenable, firecrawl, anysearch, and tinyfish.",
 		Version:       a.Version,
 		SilenceErrors: true,
 		SilenceUsage:  true,

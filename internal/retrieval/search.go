@@ -131,6 +131,7 @@ func upstreamLimit(limit int, name string, maxResults int) (int, []Warning) {
 
 func searchOne(requestCtx context.Context, start time.Time, request SearchRequest, name string, provider SearchProvider, apiKeys []string) searchCall {
 	upstreamRequest := request
+	upstreamRequest.DisableSnippets = provider.DisableSnippets
 	var call searchCall
 	upstreamRequest.Limit, call.warnings = upstreamLimit(request.Limit, name, provider.MaxResults)
 	var candidates []Candidate
@@ -138,7 +139,7 @@ func searchOne(requestCtx context.Context, start time.Time, request SearchReques
 	if requestCtx.Err() == nil {
 		candidates, issue = provider.Search(requestCtx, upstreamRequest)
 	}
-	call.execution = Execution{Provider: name}
+	call.execution = Execution{Provider: name, EffectiveTimeoutMS: effectiveTimeoutMS(requestCtx, start)}
 	if issue == nil && len(candidates) > 0 && requestCtx.Err() == nil {
 		call.validate(candidates, request.Limit, apiKeys)
 	}

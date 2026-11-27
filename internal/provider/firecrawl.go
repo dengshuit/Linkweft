@@ -100,14 +100,16 @@ func (f *firecrawl) Fetch(ctx context.Context, address string) (*retrieval.Docum
 		return nil, firecrawlInvalidResponse()
 	}
 	if pageError != "" || statusCode >= 400 {
+		var issue *retrieval.Error
 		switch statusCode {
 		case http.StatusUnauthorized, http.StatusForbidden:
-			return nil, firecrawlContentBlocked()
+			issue = firecrawlContentBlocked()
 		case http.StatusTooManyRequests:
-			return nil, &retrieval.Error{Code: "rate_limited", Message: "provider reported a rate limit for the requested URL"}
+			issue = &retrieval.Error{Code: "rate_limited", Message: "provider reported a rate limit for the requested URL"}
 		default:
-			return nil, &retrieval.Error{Code: "upstream_error", Message: "provider reported content retrieval failure for the requested URL"}
+			issue = &retrieval.Error{Code: "upstream_error", Message: "provider reported content retrieval failure for the requested URL"}
 		}
+		return nil, withTargetHTTPStatus(issue, statusCode)
 	}
 
 	var markdown string

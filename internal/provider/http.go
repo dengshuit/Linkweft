@@ -6,9 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"math"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"linkweft/internal/retrieval"
 )
@@ -60,22 +63,51 @@ func doJSON(client *http.Client, req *http.Request, output any, mapError func(in
 		return requestError(err, "provider request failed")
 	}
 	defer resp.Body.Close()
+	var issue *retrieval.Error
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		if mapError != nil {
-			if issue := mapError(resp.StatusCode, resp.Body); issue != nil {
-				return issue
+			issue = mapError(resp.StatusCode, resp.Body)
+		}
+		if issue == nil {
+			switch resp.StatusCode {
+			case http.StatusUnauthorized, http.StatusForbidden:
+				issue = &retrieval.Error{Code: "auth_failed", Message: "provider rejected the API credentials"}
+			case http.StatusTooManyRequests:
+				issue = &retrieval.Error{Code: "rate_limited", Message: "provider rate limit reached"}
+			default:
+				issue = &retrieval.Error{Code: "upstream_error", Message: "provider returned an unsuccessful HTTP status"}
 			}
 		}
-		switch resp.StatusCode {
-		case http.StatusUnauthorized, http.StatusForbidden:
-			return &retrieval.Error{Code: "auth_failed", Message: "provider rejected the API credentials"}
-		case http.StatusTooManyRequests:
-			return &retrieval.Error{Code: "rate_limited", Message: "provider rate limit reached"}
-		default:
-			return &retrieval.Error{Code: "upstream_error", Message: "provider returned an unsuccessful HTTP status"}
-		}
+	} else {
+		issue = readJSON(resp.Body, output)
 	}
-	return readJSON(resp.Body, output)
+	if issue != nil {
+		issue.HTTPStatus = &resp.StatusCode
+		issue.RetryAfterMS = retryAfterMS(resp.Header.Get("Retry-After"), time.Now())
+	}
+	return issue
+}
+
+func retryAfterMS(value string, now time.Time) *int64 {
+	value = strings.TrimSpace(value)
+	seconds, err := strconv.ParseUint(value, 10, 64)
+	if err == nil && seconds <= math.MaxInt64/1000 {
+		delay := int64(seconds) * 1000
+		return &delay
+	}
+	date, err := http.ParseTime(value)
+	if err != nil {
+		return nil
+	}
+	delay := max(int64(0), date.Sub(now).Milliseconds())
+	return &delay
+}
+
+func withTargetHTTPStatus(issue *retrieval.Error, status int) *retrieval.Error {
+	if issue != nil && status >= 100 && status <= 599 {
+		issue.TargetHTTPStatus = &status
+	}
+	return issue
 }
 
 func readJSON(body io.Reader, output any) *retrieval.Error {

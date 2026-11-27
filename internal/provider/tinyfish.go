@@ -103,7 +103,7 @@ func (a *tinyFish) Fetch(ctx context.Context, address string) (*retrieval.Docume
 		if strings.TrimSpace(failure.Code) == "" {
 			return nil, tinyFishInvalidResponse()
 		}
-		return nil, tinyFishFetchFailure(failure.Code, failure.Status)
+		return nil, withTargetHTTPStatus(tinyFishFetchFailure(failure.Code, failure.Status), failure.Status)
 	}
 	var match *tinyFishResult
 	for _, item := range response.Results {

@@ -41,11 +41,12 @@ type Fetch struct {
 }
 
 type Provider struct {
-	APIKey        string
-	SearchTimeout time.Duration
-	FetchTimeout  time.Duration
-	SearchBaseURL string
-	FetchBaseURL  string
+	APIKey         string
+	SearchSnippets bool
+	SearchTimeout  time.Duration
+	FetchTimeout   time.Duration
+	SearchBaseURL  string
+	FetchBaseURL   string
 }
 
 type fileConfig struct {
@@ -61,12 +62,13 @@ type fileConfig struct {
 		MaxChars *int     `toml:"max_chars"`
 	} `toml:"fetch"`
 	Providers map[string]struct {
-		APIKey        string  `toml:"api_key"`
-		SearchTimeout *string `toml:"search_timeout"`
-		FetchTimeout  *string `toml:"fetch_timeout"`
-		BaseURL       *string `toml:"base_url"`
-		SearchBaseURL *string `toml:"search_base_url"`
-		FetchBaseURL  *string `toml:"fetch_base_url"`
+		APIKey         string  `toml:"api_key"`
+		SearchSnippets *bool   `toml:"search_snippets"`
+		SearchTimeout  *string `toml:"search_timeout"`
+		FetchTimeout   *string `toml:"fetch_timeout"`
+		BaseURL        *string `toml:"base_url"`
+		SearchBaseURL  *string `toml:"search_base_url"`
+		FetchBaseURL   *string `toml:"fetch_base_url"`
 	} `toml:"providers"`
 }
 
@@ -166,6 +168,9 @@ func resolve(file fileConfig) (Config, error) {
 	}
 	for _, name := range searchOrder {
 		entry := file.Providers[name]
+		if entry.SearchSnippets != nil && name != "exa" {
+			return Config{}, errors.New("providers." + name + ".search_snippets is only supported for exa")
+		}
 		for _, field := range []struct {
 			name  string
 			value *string
@@ -195,8 +200,9 @@ func resolve(file fileConfig) (Config, error) {
 		key = strings.TrimSpace(key)
 		cfg.Providers[name] = Provider{
 			APIKey: key, SearchTimeout: timeout, FetchTimeout: fetchTimeout,
-			SearchBaseURL: baseURLOrDefault(entry.SearchBaseURL, baseURL),
-			FetchBaseURL:  baseURLOrDefault(entry.FetchBaseURL, baseURL),
+			SearchSnippets: entry.SearchSnippets == nil || *entry.SearchSnippets,
+			SearchBaseURL:  baseURLOrDefault(entry.SearchBaseURL, baseURL),
+			FetchBaseURL:   baseURLOrDefault(entry.FetchBaseURL, baseURL),
 		}
 		// A file key overridden by the environment still needs protection in output.
 		for _, value := range []string{key, strings.TrimSpace(entry.APIKey)} {

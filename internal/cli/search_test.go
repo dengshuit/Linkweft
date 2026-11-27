@@ -146,11 +146,14 @@ func execution(t *testing.T, obj map[string]any, status string, reason any, erro
 		t.Fatalf("executions = %#v, want one record", items)
 	}
 	entry, ok := items[0].(map[string]any)
-	if !ok || len(entry) != 5 || entry["provider"] != "tavily" || entry["status"] != status || entry["reason"] != reason {
+	if !ok || len(entry) != 6 || entry["provider"] != "tavily" || entry["status"] != status || entry["reason"] != reason {
 		t.Fatalf("unexpected execution: %#v", items[0])
 	}
 	if duration, ok := entry["duration_ms"].(float64); !ok || duration < 0 {
 		t.Errorf("expected a nonnegative duration: %#v", entry)
+	}
+	if budget, ok := entry["effective_timeout_ms"].(float64); !ok || budget < 0 {
+		t.Errorf("expected a nonnegative effective timeout: %#v", entry)
 	}
 	if errorCode != "" {
 		objectCode(t, entry["error"], errorCode)
